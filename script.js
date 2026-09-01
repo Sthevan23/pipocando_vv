@@ -725,8 +725,8 @@ function applyBrand() {
     metaDesc.content = `${b.brandName}${b.brandAccent ? ' ' + b.brandAccent : ''} — ${b.brandSub}. ${b.slogan}`.trim();
   }
 
-  const logoPath = String(s.logo || b.logo || 'products/logo-pipocando-vv.png').trim();
-  const logoSrc = logoPath ? `${imgSrc(logoPath)}?v=8` : '';
+  const logoPath = String(s.logo || b.logo || '').trim();
+  const logoSrc = logoPath ? imgSrc(logoPath) : '';
   ['brand-logo-img', 'footer-brand-logo-img'].forEach((id) => {
     const img = document.getElementById(id);
     if (!img) return;

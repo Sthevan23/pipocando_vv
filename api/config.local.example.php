@@ -12,8 +12,8 @@ $remoteHost = 'COLOQUE_O_HOSTNAME_REMOTE_MYSQL_AQUI';
 return [
   'host' => $isLocalDev ? $remoteHost : 'localhost',
   'port' => 3306,
-  'name' => 'u586160337_pipocando_vv',
-  'user' => 'u586160337_pipocando_vv',
+  'name' => 'u586160337_pipocandovv',
+  'user' => 'u586160337_pipocandovv',
   'pass' => 'COLOQUE_A_SENHA_DO_MYSQL_AQUI',
   'charset' => 'utf8mb4',
 ];

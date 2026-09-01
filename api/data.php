@@ -1,7 +1,7 @@
 <?php
 /**
  * API Pipocando VV — MySQL Hostinger
- * Banco: u586160337_pipocando_vv
+ * Banco: u586160337_pipocandovv
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');

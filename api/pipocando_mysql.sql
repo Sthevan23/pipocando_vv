@@ -3,7 +3,7 @@
 -- Charset: utf8mb4
 --
 -- COMO USAR:
--- 1) hPanel Hostinger > Bancos de dados MySQL > criar banco (se ainda não tiver)
+-- 1) hPanel Hostinger > Bancos de dados MySQL > banco u586160337_pipocandovv
 -- 2) phpMyAdmin > selecione o banco > aba SQL > cole este arquivo > Executar
 -- 3) Crie api/config.local.php com host, usuário, senha e nome do banco
 -- 4) Suba os arquivos PHP da API (db.php, mysql_store.php, data.php completo, etc.)
