@@ -279,12 +279,12 @@ window.AuroraCart = (() => {
   function getDeliveryFee() {
     if (typeof Storage === 'undefined') return 7;
     const n = Number(Storage.getSettings()?.deliveryFee);
-    return Number.isFinite(n) && n >= 0 ? n : 7;
+    return Number.isFinite(n) && n >= 0 ? n : 5;
   }
 
   function getDeliveryNote() {
-    if (typeof Storage === 'undefined') return 'Bairros mais afastados: consultar';
-    return Storage.getSettings()?.deliveryNote || 'Bairros mais afastados: consultar';
+    if (typeof Storage === 'undefined') return 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    return Storage.getSettings()?.deliveryNote || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
   }
 
   function formatMoney(value) {
@@ -330,14 +330,12 @@ window.AuroraCart = (() => {
   }
 
   function fulfillmentBlock(_mode, address = '') {
-    const fee = formatMoney(getDeliveryFee());
-    const note = getDeliveryNote();
+    const zones = getDeliveryNote();
     const addr = String(address || '').trim();
     return (
       `FORMA: Entrega\n` +
-      `Taxa região central: ${fee}\n` +
-      `${note}\n` +
-      (addr ? `Endereço: ${addr}` : '(Informar endereço no WhatsApp)')
+      `Taxas: ${zones}\n` +
+      (addr ? `Endereço: ${addr}` : '(Informar endereço e cidade no WhatsApp)')
     );
   }
 

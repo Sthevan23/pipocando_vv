@@ -26,6 +26,9 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     placeShort: 'Cobilandia, Vila Velha',
 
+    siteUrl: 'https://pipocandovv.com.br/',
+    adminUrl: 'https://pipocandovv.com.br/admin/login.html',
+
     whatsappOrderMsg: 'Olá! Quero pedir pipocas gourmet 🍿',
 
     whatsappFloatMsg: 'Olá! Tenho uma dúvida 🍿',
@@ -48,9 +51,9 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     hours: 'Seg a Sáb · pedidos pelo WhatsApp',
 
-    deliveryFee: 8,
+    deliveryFee: 5,
 
-    deliveryNote: 'Consultar bairros e taxa no WhatsApp',
+    deliveryNote: 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
 
   },
 

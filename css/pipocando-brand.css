@@ -1,53 +1,99 @@
 /* Pipocando VV — ajustes mínimos sobre o tema Aurora */
 
-.brand-logo__img {
-  display: block;
-  width: min(92vw, 420px);
-  height: auto;
-  max-height: clamp(4.5rem, 18vw, 7.5rem);
-  object-fit: contain;
-  filter: drop-shadow(0 10px 24px rgba(88, 56, 24, 0.12));
+/* Logo em texto (sem fundo — padrão) */
+.brand-logo--hero .brand-logo__name,
+.brand-logo--footer .brand-logo__name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1em;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.brand-logo__img--footer {
-  width: min(72vw, 260px);
-  max-height: 4.5rem;
-  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.18));
-}
-
-.brand-logo--hero .brand-logo__img {
-  margin-inline: auto;
-}
-
-.brand-logo__vv {
+.brand-logo--hero .brand-logo__vv {
   font-family: var(--font-body);
   font-weight: 800;
-  font-size: 0.55em;
+  font-size: 0.42em;
   color: var(--color-pink-deep);
   letter-spacing: 0.04em;
   vertical-align: baseline;
 }
 
-.brand-logo__vv[hidden] {
+.brand-logo--footer .brand-logo__vv {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.42em;
+  color: var(--color-pink-soft);
+  letter-spacing: 0.04em;
+}
+
+/* Logo PNG opcional (só se configurada no admin) */
+.brand-logo__img {
+  display: block;
+  width: clamp(10rem, 42vw, 16rem);
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: transparent;
+}
+
+.brand-logo--has-image .brand-logo__name,
+.brand-logo--has-image .brand-logo__sub {
   display: none !important;
 }
 
-.brand-logo--hero .brand-logo__name {
-  /* mantém Allura rosa da Aurora */
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.12em;
-  flex-wrap: wrap;
-  justify-content: center;
+.brand-logo--has-image .brand-logo__img {
+  mix-blend-mode: multiply;
+}
+
+.brand-logo--hero .brand-logo__img {
+  width: clamp(14rem, 78vw, 28rem);
+  margin-inline: auto;
+  filter:
+    saturate(1.12)
+    hue-rotate(-4deg)
+    drop-shadow(0 8px 22px rgba(232, 90, 118, 0.18));
+}
+
+.brand-logo__img--footer {
+  width: clamp(9.5rem, 38vw, 14rem);
+  filter:
+    saturate(1.1)
+    hue-rotate(-4deg)
+    drop-shadow(0 4px 12px rgba(88, 56, 24, 0.1));
+  mix-blend-mode: screen;
+}
+
+@media (min-width: 768px) {
+  .brand-logo--hero .brand-logo__img {
+    width: clamp(18rem, 52vw, 30rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .brand-logo--hero .brand-logo__img {
+    width: min(32rem, 46vw);
+  }
+
+  .hero__logo {
+    margin-bottom: 1.5rem;
+  }
 }
 
 .brand-logo--footer .brand-logo__name {
   color: #fff;
 }
 
-.brand-logo--footer .brand-logo__vv {
-  color: var(--color-pink-soft);
+.brand-logo--footer .brand-logo__sub {
+  color: rgba(255, 255, 255, 0.72);
 }
+
+.brand-logo__vv[hidden] {
+  display: none !important;
+}
+
+/* hero/footer name styles live in style.css */
 
 /* Hero com imagem de fundo suave */
 .hero__bg-photo.has-banner {

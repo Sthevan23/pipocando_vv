@@ -8,7 +8,7 @@ require_once __DIR__ . '/db.php';
 function pipocando_brand_keys(): array {
   return [
     'brandName', 'brandAccent', 'brandSub', 'slogan', 'heroLine1', 'heroLine2Prefix',
-    'heroWords', 'heroCategories', 'placeShort', 'whatsappOrderMsg', 'whatsappFloatMsg',
+    'heroWords', 'heroCategories', 'placeShort', 'siteUrl', 'adminUrl', 'whatsappOrderMsg', 'whatsappFloatMsg',
   ];
 }
 
@@ -328,8 +328,8 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     'heroStory' => aurora_json_decode_field($settingsRow['hero_story'] ?? null, []),
     'sobreText1' => $settingsRow['sobre_text1'] ?? '',
     'sobreText2' => $settingsRow['sobre_text2'] ?? '',
-    'deliveryFee' => isset($settingsRow['delivery_fee']) ? (float) $settingsRow['delivery_fee'] : 7,
-    'deliveryNote' => $settingsRow['delivery_note'] ?? 'Consultar bairros e taxa no WhatsApp',
+    'deliveryFee' => isset($settingsRow['delivery_fee']) ? (float) $settingsRow['delivery_fee'] : 5,
+    'deliveryNote' => $settingsRow['delivery_note'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
   ];
   pipocando_merge_brand_into_settings($settings);
 
@@ -721,13 +721,13 @@ function aurora_save_all(PDO $pdo, array $payload): void {
         delivery_fee=VALUES(delivery_fee), delivery_note=VALUES(delivery_note),
         data_version=VALUES(data_version)'
     );
-    $deliveryFee = isset($s['deliveryFee']) ? (float) $s['deliveryFee'] : 7;
+    $deliveryFee = isset($s['deliveryFee']) ? (float) $s['deliveryFee'] : 5;
     if ($deliveryFee < 0) {
       $deliveryFee = 0;
     }
-    $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Bairros mais afastados: consultar'));
+    $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'));
     if ($deliveryNote === '') {
-      $deliveryNote = 'Bairros mais afastados: consultar';
+      $deliveryNote = 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
     }
     $stmt->execute([
       $s['name'] ?? '',

@@ -13,6 +13,8 @@
     "heroWords": ["doce", "especial", "irresistível"],
     "heroCategories": "Pipocas trufadas · artesanais · lembrancinhas",
     "placeShort": "Cobilandia, Vila Velha",
+    "siteUrl": "https://pipocandovv.com.br/",
+    "adminUrl": "https://pipocandovv.com.br/admin/login.html",
     "whatsappOrderMsg": "Olá! Quero pedir pipocas gourmet 🍿",
     "whatsappFloatMsg": "Olá! Tenho uma dúvida 🍿",
     "logo": "",
@@ -24,8 +26,8 @@
     "email": "contato@pipocandovv.com.br",
     "address": "Rua Burarama, 168, Cobilandia — Vila Velha, ES",
     "hours": "Seg a Sáb · pedidos pelo WhatsApp",
-    "deliveryFee": 8,
-    "deliveryNote": "Consultar bairros e taxa no WhatsApp"
+    "deliveryFee": 5,
+    "deliveryNote": "Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5"
   },
   "categories": [
     {

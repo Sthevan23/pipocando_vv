@@ -187,29 +187,31 @@ function syncFulfillmentUI() {
 }
 
 function fulfillmentWhatsAppBlock(_mode, address = '') {
-  const fee = formatDeliveryFeeText();
-  const note = getDeliveryNote();
+  const zones = formatDeliveryZonesText();
   const addr = String(address || '').trim();
   return (
     `FORMA: Entrega\n` +
-    `Taxa região central: ${fee}\n` +
-    `${note}\n` +
-    (addr ? `Endereço: ${addr}` : '(Informar endereço no WhatsApp)')
+    `Taxas: ${zones}\n` +
+    (addr ? `Endereço: ${addr}` : '(Informar endereço e cidade no WhatsApp)')
   );
 }
 
 function getDeliveryFee() {
   const n = Number(Storage.getSettings()?.deliveryFee);
-  return Number.isFinite(n) && n >= 0 ? n : 7;
+  return Number.isFinite(n) && n >= 0 ? n : 5;
 }
 
 function getDeliveryNote() {
   const note = String(Storage.getSettings()?.deliveryNote || '').trim();
-  return note || 'Bairros mais afastados: consultar';
+  return note || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
 }
 
 function formatDeliveryFeeText() {
   return Storage.formatCurrency(getDeliveryFee());
+}
+
+function formatDeliveryZonesText() {
+  return getDeliveryNote();
 }
 
 function loadCart() {
@@ -638,6 +640,19 @@ function getProducts() {
   return Storage.getProducts().filter((p) => p.active !== false);
 }
 
+function getSiteUrl() {
+  const s = Storage.getSettings() || {};
+  const d = window.BRAND_DEFAULTS || {};
+  const raw = String(s.siteUrl || d.siteUrl || window.SITE_URL || 'https://pipocandovv.com.br/').trim();
+  return raw.endsWith('/') ? raw : `${raw}/`;
+}
+
+function getAdminUrl() {
+  const s = Storage.getSettings() || {};
+  const d = window.BRAND_DEFAULTS || {};
+  return String(s.adminUrl || d.adminUrl || window.ADMIN_URL || 'https://pipocandovv.com.br/admin/login.html').trim();
+}
+
 function getBrandSettings() {
   const s = Storage.getSettings() || {};
   const d = window.BRAND_DEFAULTS || {};
@@ -657,6 +672,8 @@ function getBrandSettings() {
     heroWords: words,
     heroCategories: s.heroCategories || d.heroCategories || '',
     placeShort: s.placeShort || d.placeShort || '',
+    siteUrl: s.siteUrl || d.siteUrl || window.SITE_URL || 'https://pipocandovv.com.br/',
+    adminUrl: s.adminUrl || d.adminUrl || window.ADMIN_URL || 'https://pipocandovv.com.br/admin/login.html',
     whatsappOrderMsg: s.whatsappOrderMsg || d.whatsappOrderMsg || 'Olá! Quero fazer um pedido',
     whatsappFloatMsg: s.whatsappFloatMsg || d.whatsappFloatMsg || 'Olá! Tenho uma dúvida',
     marqueeItems: marquee.length ? marquee : (d.marqueeItems || []),
@@ -708,12 +725,27 @@ function applyBrand() {
     metaDesc.content = `${b.brandName}${b.brandAccent ? ' ' + b.brandAccent : ''} — ${b.brandSub}. ${b.slogan}`.trim();
   }
 
-  const logoPath = String(s.logo || b.logo || 'products/logo-pipocando-vv.png').trim();
+  const logoPath = String(s.logo || b.logo || '').trim();
   const logoSrc = logoPath ? imgSrc(logoPath) : '';
   ['brand-logo-img', 'footer-brand-logo-img'].forEach((id) => {
     const img = document.getElementById(id);
-    if (img && logoSrc) img.src = logoSrc;
+    if (!img) return;
+    if (logoSrc) {
+      img.src = logoSrc;
+      img.hidden = false;
+      img.closest('.brand-logo')?.classList.add('brand-logo--has-image');
+    } else {
+      img.removeAttribute('src');
+      img.hidden = true;
+      img.closest('.brand-logo')?.classList.remove('brand-logo--has-image');
+    }
   });
+
+  const siteUrl = getSiteUrl();
+  const canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical) canonical.setAttribute('href', siteUrl);
+  const ogUrl = document.querySelector('meta[property="og:url"]');
+  if (ogUrl) ogUrl.setAttribute('content', siteUrl);
 
   return b;
 }
@@ -754,33 +786,30 @@ function applySettings() {
 
   const orderPickup = document.getElementById('order-pickup');
   if (orderPickup) {
-    orderPickup.textContent =
-      `Entrega em ${address} e região — ${formatDeliveryFeeText()} na região central · ${getDeliveryNote()}.`;
+    orderPickup.textContent = `Entrega — ${formatDeliveryZonesText()}`;
   }
 
   const contactDelivery = document.getElementById('contact-delivery-fee');
   if (contactDelivery) {
-    contactDelivery.textContent = `${formatDeliveryFeeText()} — região central`;
+    contactDelivery.textContent = formatDeliveryZonesText();
   }
   const contactDeliveryNote = document.getElementById('contact-delivery-note');
   if (contactDeliveryNote) {
-    contactDeliveryNote.textContent = getDeliveryNote();
+    contactDeliveryNote.textContent = 'Taxa confirmada no WhatsApp conforme a cidade';
   }
 
   const footerDelivery = document.getElementById('footer-delivery');
   if (footerDelivery) {
-    footerDelivery.textContent =
-      `Pedidos pelo WhatsApp · Entrega ${formatDeliveryFeeText()} (centro) · ${getDeliveryNote()}`;
+    footerDelivery.textContent = `Pedidos pelo WhatsApp · ${formatDeliveryZonesText()}`;
   }
 
-  const feeLabel = formatDeliveryFeeText();
+  const zones = formatDeliveryZonesText();
   document.querySelectorAll('[data-delivery-fee-label]').forEach((el) => {
-    el.textContent = `${feeLabel} no centro`;
+    el.textContent = zones;
   });
   const cartDeliveryNote = document.getElementById('cart-delivery-note');
   if (cartDeliveryNote) {
-    cartDeliveryNote.innerHTML =
-      `Entrega: <strong>${feeLabel}</strong> região central · ${getDeliveryNote()} no WhatsApp`;
+    cartDeliveryNote.innerHTML = `Entrega: <strong>${zones}</strong>`;
   }
   const heroBg = document.getElementById('hero-bg');
   if (heroBg && s.banner) {

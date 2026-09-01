@@ -62,7 +62,7 @@ CREATE TABLE `settings` (
   `sobre_text1` TEXT,
   `sobre_text2` TEXT,
   `delivery_fee` DECIMAL(10,2) NOT NULL DEFAULT 8.00,
-  `delivery_note` VARCHAR(255) DEFAULT 'Consultar bairros e taxa no WhatsApp',
+  `delivery_note` VARCHAR(255) DEFAULT 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
   `data_version` INT UNSIGNED NOT NULL DEFAULT 2,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -269,13 +269,15 @@ INSERT INTO `settings` (
     'heroWords', JSON_ARRAY('doce', 'especial', 'irresistível'),
     'heroCategories', 'Pipocas trufadas · artesanais · lembrancinhas',
     'placeShort', 'Cobilandia, Vila Velha',
+    'siteUrl', 'https://pipocandovv.com.br/',
+    'adminUrl', 'https://pipocandovv.com.br/admin/login.html',
     'whatsappOrderMsg', 'Olá! Quero pedir pipocas gourmet 🍿',
     'whatsappFloatMsg', 'Olá! Tenho uma dúvida 🍿'
   ),
   '',
   '',
-  8.00,
-  'Consultar bairros e taxa no WhatsApp',
+  5.00,
+  'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
   2
 );
 

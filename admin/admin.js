@@ -409,7 +409,7 @@ function orderItemsSubtotal(items) {
 
 function getDefaultDeliveryFee() {
   const n = Number(Storage.getSettings()?.deliveryFee);
-  return Number.isFinite(n) && n >= 0 ? n : 7;
+  return Number.isFinite(n) && n >= 0 ? n : 5;
 }
 
 function resolveOrderExtras(order) {
@@ -2607,9 +2607,9 @@ function initSettings() {
   document.getElementById('set-address').value = s.address || '';
   document.getElementById('set-hours').value = s.hours || '';
   document.getElementById('set-delivery-fee').value =
-    s.deliveryFee != null && s.deliveryFee !== '' ? Number(s.deliveryFee) : 7;
+    s.deliveryFee != null && s.deliveryFee !== '' ? Number(s.deliveryFee) : 5;
   document.getElementById('set-delivery-note').value =
-    s.deliveryNote || 'Bairros mais afastados: consultar';
+    s.deliveryNote || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
   document.getElementById('set-sobre1').value = s.sobreText1 || '';
   document.getElementById('set-sobre2').value = s.sobreText2 || '';
 
@@ -2630,6 +2630,14 @@ function initSettings() {
   setBrand('set-hero-words', heroWords.join(', '));
   setBrand('set-hero-categories', s.heroCategories ?? brandDefaults.heroCategories ?? '');
   setBrand('set-place-short', s.placeShort ?? brandDefaults.placeShort ?? '');
+  const siteUrlEl = document.getElementById('set-site-url');
+  if (siteUrlEl) {
+    siteUrlEl.value = s.siteUrl || brandDefaults.siteUrl || window.SITE_URL || 'https://pipocandovv.com.br/';
+  }
+  const adminUrlEl = document.getElementById('set-admin-url');
+  if (adminUrlEl) {
+    adminUrlEl.value = s.adminUrl || brandDefaults.adminUrl || window.ADMIN_URL || 'https://pipocandovv.com.br/admin/login.html';
+  }
 
   bindImageUpload('set-banner-file', 'set-banner');
   bindImageUpload('set-sobre-file', 'set-sobre-image');
@@ -2638,7 +2646,7 @@ function initSettings() {
     e.preventDefault();
     const feeRaw = String(document.getElementById('set-delivery-fee').value || '').replace(',', '.');
     let deliveryFee = Number(feeRaw);
-    if (!Number.isFinite(deliveryFee) || deliveryFee < 0) deliveryFee = 7;
+    if (!Number.isFinite(deliveryFee) || deliveryFee < 0) deliveryFee = 5;
 
     const payload = {
       name: document.getElementById('set-name').value.trim(),
@@ -2652,7 +2660,7 @@ function initSettings() {
       address: document.getElementById('set-address').value.trim(),
       hours: document.getElementById('set-hours').value.trim(),
       deliveryFee,
-      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Bairros mais afastados: consultar',
+      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
       sobreText1: document.getElementById('set-sobre1').value.trim(),
       sobreText2: document.getElementById('set-sobre2').value.trim(),
       brandName: document.getElementById('set-brand-name')?.value.trim() || '',
@@ -2667,6 +2675,8 @@ function initSettings() {
         .filter(Boolean),
       heroCategories: document.getElementById('set-hero-categories')?.value.trim() || '',
       placeShort: document.getElementById('set-place-short')?.value.trim() || '',
+      siteUrl: document.getElementById('set-site-url')?.value.trim() || 'https://pipocandovv.com.br/',
+      adminUrl: document.getElementById('set-admin-url')?.value.trim() || 'https://pipocandovv.com.br/admin/login.html',
     };
 
     Storage.saveSettings(payload);
