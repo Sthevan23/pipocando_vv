@@ -395,6 +395,7 @@ function renderOrders() {
             <i class="fas fa-edit"></i> Editar
           </button>
           <button type="button" class="btn--icon edit" onclick="editOrderStatus('${o.id}')" title="Alterar status"><i class="fas fa-exchange-alt"></i></button>
+          ${o.status === 'novo' || o.status === 'preparo' ? `<button type="button" class="btn--icon edit" onclick="quickShipOrder('${o.id}')" title="Saiu para entrega + avisar no WhatsApp"><i class="fas fa-motorcycle"></i></button>` : ''}
           <button type="button" class="btn--icon edit" onclick="viewOrder('${o.id}')" title="Ver detalhes"><i class="fas fa-eye"></i></button>
           <button type="button" class="btn--icon delete" onclick="deleteOrder('${o.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
         </div>
@@ -412,6 +413,58 @@ function getDefaultDeliveryFee() {
   return Number.isFinite(n) && n >= 0 ? n : 5;
 }
 
+function extractAddressFromOrderNotes(notes) {
+  const text = String(notes || '');
+  const match = text.match(/Endereço:\s*([^|]+)/i);
+  return match ? match[1].trim() : '';
+}
+
+function extractCityFeeFromOrderNotes(notes) {
+  const text = String(notes || '');
+  const feeMatch = text.match(/Frete\s*R\$\s*([\d.,]+)/i);
+  if (!feeMatch) return null;
+  const fee = parseFloat(String(feeMatch[1]).replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(fee) || fee <= 0) return null;
+  const cityMatch = text.match(/Cidade:\s*([^—|]+)/i);
+  return {
+    known: true,
+    fee,
+    label: cityMatch ? cityMatch[1].trim() : '',
+  };
+}
+
+function resolveDeliveryFeeForOrder(order) {
+  const notes = String(order?.notes || '');
+  const fromNotes = extractCityFeeFromOrderNotes(notes);
+  if (fromNotes) return fromNotes;
+
+  const clients = Storage.getClients();
+  const client = clients.find((c) => c.id === order?.clientId);
+  const address = extractAddressFromOrderNotes(notes) || String(client?.address || '').trim();
+
+  if (window.PipocandoDelivery?.resolve) {
+    const cityFromNotes = notes.match(/Cidade:\s*([^—|]+)/i);
+    if (cityFromNotes) {
+      const resolvedCity = PipocandoDelivery.resolveFromAddress(cityFromNotes[1]);
+      if (resolvedCity.known) return resolvedCity;
+    }
+    const resolved = PipocandoDelivery.resolve('', address || notes);
+    if (resolved.known) return resolved;
+  } else if (window.PipocandoDelivery) {
+    const resolved = PipocandoDelivery.resolveFromAddress(address || notes);
+    if (resolved.known) return resolved;
+  }
+
+  return { known: false, fee: 0, city: '', label: '' };
+}
+
+function suggestDeliveryFeeForOrder(order) {
+  const zone = resolveDeliveryFeeForOrder(order);
+  if (zone.known && zone.fee > 0) return zone.fee;
+  if (/entrega/i.test(String(order?.notes || ''))) return getDefaultDeliveryFee();
+  return 0;
+}
+
 function resolveOrderExtras(order) {
   const subtotal = orderItemsSubtotal(order.items);
   let deliveryFee = Number(order.deliveryFee);
@@ -419,15 +472,18 @@ function resolveOrderExtras(order) {
   let discount = Number(order.discount);
   if (!Number.isFinite(discount)) discount = 0;
   let waiveDelivery = order.waiveDelivery === true || order.waiveDelivery === 1;
+  const notes = String(order.notes || '');
+  const hasSavedFee = order.deliveryFee != null && Number(order.deliveryFee) > 0;
 
-  if (order.deliveryFee == null && !waiveDelivery && deliveryFee <= 0) {
-    const notes = String(order.notes || '');
-    if (/entrega/i.test(notes)) {
-      const diff = Number(order.total) - subtotal + discount;
-      if (diff > 0.001) deliveryFee = diff;
-    }
+  if (!waiveDelivery && !hasSavedFee && deliveryFee <= 0) {
+    const diff = Number(order.total) - subtotal + discount;
+    if (diff > 0.001) deliveryFee = diff;
   }
-  if (deliveryFee <= 0 && !waiveDelivery && /entrega/i.test(String(order.notes || ''))) {
+  if (!waiveDelivery && deliveryFee <= 0) {
+    const zone = resolveDeliveryFeeForOrder(order);
+    if (zone.known && zone.fee > 0) deliveryFee = zone.fee;
+  }
+  if (!waiveDelivery && deliveryFee <= 0 && /entrega/i.test(notes)) {
     deliveryFee = getDefaultDeliveryFee();
   }
 
@@ -452,25 +508,41 @@ function productPriceForOrder(product, flavor = '') {
 
 function renderOrderEditorItems(container, items, onChange) {
   if (!items.length) {
-    container.innerHTML = '<p class="order-editor__empty">Nenhum item no pedido</p>';
+    container.innerHTML = `
+      <div class="order-editor__empty">
+        <i class="fas fa-shopping-basket" aria-hidden="true"></i>
+        <p>Nenhum item no pedido</p>
+        <small>Adicione produtos abaixo</small>
+      </div>
+    `;
     return;
   }
   container.innerHTML = items.map((item, idx) => {
-    const flavor = item.flavor ? ` · ${escapeHtml(item.flavor)}` : '';
+    const flavor = item.flavor ? escapeHtml(item.flavor) : '';
+    const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 1);
     return `
       <div class="order-editor__item" data-idx="${idx}">
-        <div class="order-editor__item-main">
-          <strong>${escapeHtml(item.name)}${flavor}</strong>
-          <span class="order-editor__item-price">${Storage.formatCurrency((Number(item.price) || 0) * (Number(item.qty) || 1))}</span>
+        <div class="order-editor__item-top">
+          <div class="order-editor__item-badge"><i class="fas fa-cookie-bite" aria-hidden="true"></i></div>
+          <div class="order-editor__item-info">
+            <strong class="order-editor__item-name">${escapeHtml(item.name)}</strong>
+            ${flavor ? `<span class="order-editor__item-flavor">${flavor}</span>` : ''}
+          </div>
+          <span class="order-editor__item-price">${Storage.formatCurrency(lineTotal)}</span>
         </div>
-        <div class="order-editor__item-actions">
-          <label class="order-editor__qty">Qtd
+        <div class="order-editor__item-footer">
+          <label class="order-editor__field">
+            <span>Quantidade</span>
             <input type="number" min="1" max="99" value="${Number(item.qty) || 1}" data-item-qty="${idx}">
           </label>
-          <label class="order-editor__unit">Unit.
+          <label class="order-editor__field">
+            <span>Valor unit.</span>
             <input type="number" min="0" step="0.01" value="${Number(item.price) || 0}" data-item-price="${idx}">
           </label>
-          <button type="button" class="btn--icon delete" data-item-remove="${idx}" title="Remover item"><i class="fas fa-trash"></i></button>
+          <button type="button" class="order-editor__remove" data-item-remove="${idx}" title="Remover item">
+            <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            <span>Remover</span>
+          </button>
         </div>
       </div>
     `;
@@ -553,46 +625,72 @@ function editOrder(id) {
       </div>
 
       <div class="order-editor__section">
-        <h4><i class="fas fa-cookie-bite"></i> Itens do pedido</h4>
+        <div class="order-editor__section-head">
+          <h4><i class="fas fa-cookie-bite"></i> Itens do pedido</h4>
+          <span class="order-editor__count" id="edit-order-items-count">${editItems.length} item(s)</span>
+        </div>
         <div class="order-editor__items" id="edit-order-items"></div>
-        <div class="order-editor__add">
-          <select id="edit-order-product">
-            <option value="">Adicionar produto…</option>
-            ${products.filter((p) => p.active !== false).map((p) => `<option value="${p.id}">${escapeHtml(p.name)} — ${Storage.formatCurrency(productPriceForOrder(p))}</option>`).join('')}
-          </select>
-          <input type="text" id="edit-order-flavor" placeholder="Sabor (opcional)" maxlength="80">
-          <input type="number" id="edit-order-add-qty" value="1" min="1" max="99">
-          <button type="button" class="btn btn--secondary btn--sm" id="edit-order-add-btn"><i class="fas fa-plus"></i> Adicionar</button>
+        <div class="order-editor__add-card">
+          <p class="order-editor__add-title"><i class="fas fa-plus-circle"></i> Adicionar produto</p>
+          <div class="order-editor__add-grid">
+            <div class="form-group order-editor__add-product">
+              <label for="edit-order-product">Produto</label>
+              <select id="edit-order-product">
+                <option value="">Selecione um produto…</option>
+                ${products.filter((p) => p.active !== false).map((p) => `<option value="${p.id}">${escapeHtml(p.name)} — ${Storage.formatCurrency(productPriceForOrder(p))}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="edit-order-flavor">Sabor (opcional)</label>
+              <input type="text" id="edit-order-flavor" placeholder="Ex: Chocolate belga" maxlength="80">
+            </div>
+            <div class="form-group order-editor__add-qty">
+              <label for="edit-order-add-qty">Qtd</label>
+              <input type="number" id="edit-order-add-qty" value="1" min="1" max="99">
+            </div>
+            <div class="order-editor__add-action">
+              <button type="button" class="btn btn--primary btn--sm" id="edit-order-add-btn"><i class="fas fa-plus"></i> Adicionar</button>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="order-editor__section order-editor__fees">
-        <h4><i class="fas fa-motorcycle"></i> Taxas e desconto</h4>
+        <div class="order-editor__section-head">
+          <h4><i class="fas fa-motorcycle"></i> Taxas e desconto</h4>
+        </div>
         <label class="order-editor__check">
           <input type="checkbox" id="edit-order-waive-delivery" ${extras.waiveDelivery ? 'checked' : ''}>
           <span>Isentar taxa de motoboy</span>
         </label>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Taxa motoboy (R$)</label>
-            <input type="number" id="edit-order-delivery-fee" min="0" step="0.01" value="${extras.waiveDelivery ? 0 : extras.deliveryFee}">
+        <div class="order-editor__fee-grid">
+          <div class="form-group order-editor__fee-field">
+            <label for="edit-order-delivery-fee"><i class="fas fa-motorcycle"></i> Taxa motoboy</label>
+            <div class="order-editor__money-input">
+              <span>R$</span>
+              <input type="number" id="edit-order-delivery-fee" min="0" step="0.01" value="${extras.waiveDelivery ? 0 : extras.deliveryFee}">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Desconto (R$)</label>
-            <input type="number" id="edit-order-discount" min="0" step="0.01" value="${extras.discount}">
+          <div class="form-group order-editor__fee-field">
+            <label for="edit-order-discount"><i class="fas fa-tag"></i> Desconto</label>
+            <div class="order-editor__money-input">
+              <span>R$</span>
+              <input type="number" id="edit-order-discount" min="0" step="0.01" value="${extras.discount}">
+            </div>
           </div>
         </div>
         <div class="order-editor__totals">
-          <div><span>Subtotal</span><strong id="edit-order-subtotal">${Storage.formatCurrency(extras.subtotal)}</strong></div>
-          <div><span>Desconto</span><strong id="edit-order-discount-display">− ${Storage.formatCurrency(extras.discount)}</strong></div>
-          <div><span>Taxa motoboy</span><strong id="edit-order-fee-display">${extras.waiveDelivery ? 'Isenta' : Storage.formatCurrency(extras.deliveryFee)}</strong></div>
-          <div class="order-editor__totals-final"><span>Total</span><strong id="edit-order-total-display">${Storage.formatCurrency(order.total)}</strong></div>
+          <div class="order-editor__totals-row"><span>Subtotal</span><strong id="edit-order-subtotal">${Storage.formatCurrency(extras.subtotal)}</strong></div>
+          <div class="order-editor__totals-row"><span>Desconto</span><strong id="edit-order-discount-display">− ${Storage.formatCurrency(extras.discount)}</strong></div>
+          <div class="order-editor__totals-row"><span>Taxa motoboy</span><strong id="edit-order-fee-display">${extras.waiveDelivery ? 'Isenta' : Storage.formatCurrency(extras.deliveryFee)}</strong></div>
+          <div class="order-editor__totals-final"><span>Total do pedido</span><strong id="edit-order-total-display">${Storage.formatCurrency(order.total)}</strong></div>
         </div>
       </div>
 
       <div class="form-group">
         <label>Observações internas</label>
-        <textarea id="edit-order-notes" rows="3" placeholder="Entrega, pagamento, endereço…">${escapeHtml(order.notes || '')}</textarea>
+        <textarea id="edit-order-notes" rows="3" placeholder="Entrega, pagamento, endereço com cidade (Vila Velha, Vitória ou Cariacica)…">${escapeHtml(order.notes || '')}</textarea>
+        <small class="form-hint">A taxa de motoboy é calculada automaticamente pela cidade no endereço.</small>
       </div>
 
       <div class="modal__actions">
@@ -606,23 +704,50 @@ function editOrder(id) {
   const itemsBox = document.getElementById('edit-order-items');
   const feeInput = document.getElementById('edit-order-delivery-fee');
   const waiveCheck = document.getElementById('edit-order-waive-delivery');
+  const notesInput = document.getElementById('edit-order-notes');
+  let feeTouched = Number(extras.deliveryFee) > 0;
+
+  const applySuggestedDeliveryFee = ({ force = false } = {}) => {
+    if (!feeInput || waiveCheck?.checked) return;
+    if (feeTouched && !force) return;
+    const draft = {
+      ...order,
+      notes: notesInput?.value || order.notes || '',
+      items: editItems,
+    };
+    const suggested = suggestDeliveryFeeForOrder(draft);
+    if (suggested > 0) {
+      feeInput.value = String(suggested);
+      updateOrderEditorTotals(form, editItems, extras);
+    }
+  };
 
   const refreshEditor = () => {
     renderOrderEditorItems(itemsBox, editItems, refreshEditor);
+    const countEl = document.getElementById('edit-order-items-count');
+    if (countEl) {
+      const n = editItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      countEl.textContent = `${n} ${n === 1 ? 'item' : 'itens'}`;
+    }
     updateOrderEditorTotals(form, editItems, extras);
   };
 
   refreshEditor();
+  applySuggestedDeliveryFee();
 
   waiveCheck?.addEventListener('change', () => {
     if (feeInput) {
       feeInput.disabled = waiveCheck.checked;
       if (waiveCheck.checked) feeInput.value = '0';
-      else if (!feeInput.value || Number(feeInput.value) <= 0) feeInput.value = String(getDefaultDeliveryFee());
+      else applySuggestedDeliveryFee({ force: true });
     }
     updateOrderEditorTotals(form, editItems, extras);
   });
-  feeInput?.addEventListener('input', () => updateOrderEditorTotals(form, editItems, extras));
+  feeInput?.addEventListener('input', () => {
+    feeTouched = true;
+    updateOrderEditorTotals(form, editItems, extras);
+  });
+  notesInput?.addEventListener('input', () => applySuggestedDeliveryFee());
   document.getElementById('edit-order-discount')?.addEventListener('input', () => updateOrderEditorTotals(form, editItems, extras));
 
   document.getElementById('edit-order-add-btn')?.addEventListener('click', () => {
@@ -678,6 +803,7 @@ function editOrder(id) {
     const orders = Storage.getOrders();
     const idx = orders.findIndex((o) => o.id === id);
     if (idx < 0) return;
+    const previousStatus = orders[idx].status;
 
     const client = findOrCreateClient(clientName, clientWhatsapp);
     orders[idx] = {
@@ -701,6 +827,8 @@ function editOrder(id) {
       notes: document.getElementById('edit-order-notes').value.trim(),
     };
 
+    const notifyResult = notifyOrderStatusWhatsApp(orders[idx], previousStatus, newStatus);
+
     const btn = form.querySelector('[type="submit"]');
     const prev = btn?.innerHTML || '';
     if (btn) {
@@ -721,7 +849,13 @@ function editOrder(id) {
       if (document.getElementById('page-financeiro')?.classList.contains('active')) {
         initFinanceiro();
       }
-      showToast('Pedido atualizado!', 'success');
+      if (notifyResult.notified) {
+        toastAfterStatusNotification(notifyResult);
+      } else if (shouldNotifyOrderStatus(previousStatus, newStatus)) {
+        toastAfterStatusNotification(notifyResult);
+      } else {
+        showToast('Pedido atualizado!', 'success');
+      }
     } catch {
       showToast('Erro ao salvar pedido.', 'error');
     } finally {
@@ -774,6 +908,13 @@ function editOrderStatus(id) {
           <input type="tel" id="finalize-client-whatsapp" value="${escapeHtml(currentWhatsapp)}" placeholder="37999887766">
         </div>
       </div>
+      <div id="status-notify-wrap" class="form-group" hidden>
+        <label class="checkbox-label">
+          <input type="checkbox" id="status-notify-whatsapp" checked>
+          Avisar cliente no WhatsApp
+        </label>
+        <small class="form-hint">Abre o WhatsApp com a mensagem pronta — basta tocar em Enviar.</small>
+      </div>
       <div class="modal__actions">
         <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancelar</button>
         <button type="submit" class="btn btn--primary">Salvar</button>
@@ -782,6 +923,15 @@ function editOrderStatus(id) {
   `);
 
   const statusSelect = document.getElementById('order-status');
+  const notifyWrap = document.getElementById('status-notify-wrap');
+  const notifyCheckbox = document.getElementById('status-notify-whatsapp');
+  syncStatusNotifyCheckbox(statusSelect, notifyWrap, notifyCheckbox);
+  statusSelect?.addEventListener('change', () => {
+    syncStatusNotifyCheckbox(statusSelect, notifyWrap, notifyCheckbox);
+  });
+  notifyCheckbox?.addEventListener('change', () => {
+    if (notifyCheckbox) notifyCheckbox.dataset.touched = '1';
+  });
 
   document.getElementById('status-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -789,6 +939,7 @@ function editOrderStatus(id) {
     const orders = Storage.getOrders();
     const idx = orders.findIndex(o => o.id === id);
     if (idx < 0) return;
+    const previousStatus = orders[idx].status;
 
     const clientName = document.getElementById('finalize-client-name').value.trim();
     const clientWhatsapp = onlyDigits(document.getElementById('finalize-client-whatsapp').value);
@@ -813,6 +964,9 @@ function editOrderStatus(id) {
 
     orders[idx].status = newStatus;
 
+    const notifyEnabled = notifyCheckbox?.checked !== false;
+    const notifyResult = notifyOrderStatusWhatsApp(orders[idx], previousStatus, newStatus, { notify: notifyEnabled });
+
     const btn = document.querySelector('#status-form [type="submit"]');
     const prev = btn?.innerHTML || '';
     if (btn) {
@@ -833,12 +987,15 @@ function editOrderStatus(id) {
       if (document.getElementById('page-financeiro')?.classList.contains('active')) {
         initFinanceiro();
       }
-      showToast(
-        newStatus === 'finalizado'
-          ? 'Pedido finalizado! Conta na fidelidade e no financeiro.'
-          : 'Status atualizado com sucesso!',
-        'success'
-      );
+      if (notifyResult.notified) {
+        toastAfterStatusNotification(notifyResult);
+      } else if (newStatus === 'finalizado') {
+        showToast('Pedido finalizado! Conta na fidelidade e no financeiro.', 'success');
+      } else if (shouldNotifyOrderStatus(previousStatus, newStatus) && notifyEnabled) {
+        toastAfterStatusNotification(notifyResult);
+      } else {
+        showToast('Status atualizado com sucesso!', 'success');
+      }
     } catch {
       showToast('Erro ao salvar status.', 'error');
     } finally {
@@ -1238,6 +1395,134 @@ function whatsappTableLink(phone) {
   return `<a class="order-whatsapp-inline" href="https://wa.me/${withCountry}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abrir WhatsApp"><i class="fab fa-whatsapp"></i> ${escapeHtml(label)}</a>`;
 }
 
+const STATUS_WHATSAPP_NOTIFY = ['preparo', 'entrega'];
+
+function orderClientFirstName(name) {
+  return String(name || '').trim().split(/\s+/).filter(Boolean)[0] || 'Cliente';
+}
+
+function buildOrderStatusWhatsAppMessage(order, status) {
+  const name = orderClientFirstName(order.clientName);
+  const num = order.number || order.id || '';
+  const store = Storage.getSettings()?.name || 'Pipocando VV';
+
+  if (status === 'preparo') {
+    return (
+      `Olá, ${name}! 🍿\n\n` +
+      `Seu pedido *${num}* da ${store} está *sendo preparado*!\n\n` +
+      `Em breve te avisamos quando sair para entrega.`
+    );
+  }
+  if (status === 'entrega') {
+    return (
+      `Olá, ${name}! 🛵\n\n` +
+      `Seu pedido *${num}* *saiu para entrega*!\n\n` +
+      `Fique de olho — estamos a caminho. Qualquer dúvida, é só responder aqui.`
+    );
+  }
+  return '';
+}
+
+function customerWhatsAppSendUrl(phone, message) {
+  const digits = onlyDigits(phone);
+  if (!digits || digits.length < 10) return null;
+  const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
+  const text = String(message || '').trim();
+  if (!text) return null;
+  return `https://wa.me/${withCountry}?text=${encodeURIComponent(text)}`;
+}
+
+function openCustomerWhatsApp(phone, message) {
+  const url = customerWhatsAppSendUrl(phone, message);
+  if (!url) {
+    return {
+      notified: false,
+      reason: onlyDigits(phone).length < 10 ? 'no-phone' : 'no-message',
+    };
+  }
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+  return { notified: true, reason: '' };
+}
+
+function shouldNotifyOrderStatus(previousStatus, newStatus) {
+  return previousStatus !== newStatus && STATUS_WHATSAPP_NOTIFY.includes(newStatus);
+}
+
+function syncStatusNotifyCheckbox(statusSelect, wrap, checkbox) {
+  if (!wrap || !checkbox || !statusSelect) return;
+  const show = STATUS_WHATSAPP_NOTIFY.includes(statusSelect.value);
+  wrap.hidden = !show;
+  if (show && checkbox.dataset.touched !== '1') checkbox.checked = true;
+}
+
+function notifyOrderStatusWhatsApp(order, previousStatus, newStatus, { notify = true } = {}) {
+  if (!notify || !shouldNotifyOrderStatus(previousStatus, newStatus)) {
+    return { notified: false, reason: 'skip' };
+  }
+  const message = buildOrderStatusWhatsAppMessage(order, newStatus);
+  return openCustomerWhatsApp(order.clientWhatsapp, message);
+}
+
+function toastAfterStatusNotification(result) {
+  if (result.notified) {
+    showToast('Status salvo! WhatsApp aberto — toque em Enviar para avisar a cliente.', 'success');
+    return;
+  }
+  if (result.reason === 'no-phone') {
+    showToast('Status salvo. Cadastre o WhatsApp da cliente para enviar o aviso.', 'error');
+  }
+}
+
+async function quickShipOrder(id) {
+  const orders = Storage.getOrders();
+  const idx = orders.findIndex((o) => o.id === id);
+  if (idx < 0) return;
+
+  const order = orders[idx];
+  const previousStatus = order.status;
+  if (previousStatus === 'entrega') {
+    showToast('Este pedido já está como saiu para entrega.', 'error');
+    return;
+  }
+  if (previousStatus === 'finalizado' || previousStatus === 'cancelado') {
+    showToast('Não é possível enviar pedido finalizado ou cancelado.', 'error');
+    return;
+  }
+
+  const draft = { ...order, status: 'entrega' };
+  const notifyResult = notifyOrderStatusWhatsApp(draft, previousStatus, 'entrega');
+  orders[idx].status = 'entrega';
+
+  try {
+    const ok = await Storage.saveOrdersAsync(orders);
+    if (!ok) {
+      showToast('Não sincronizou com o servidor. Tente de novo.', 'error');
+      return;
+    }
+    renderOrders();
+    renderDashboard();
+    if (notifyResult.notified) {
+      showToast('Saiu para entrega! WhatsApp aberto — toque em Enviar para avisar a cliente.', 'success');
+    } else if (notifyResult.reason === 'no-phone') {
+      showToast('Status atualizado. Cadastre o WhatsApp da cliente para avisar.', 'error');
+    } else {
+      showToast('Pedido marcado como saiu para entrega!', 'success');
+    }
+  } catch {
+    showToast('Erro ao atualizar pedido.', 'error');
+  }
+}
+
 function findOrCreateClient(name, whatsapp) {
   const clients = Storage.getClients();
   const phone = onlyDigits(whatsapp);
@@ -1284,40 +1569,58 @@ function openNewOrderModal() {
   let tempItems = [];
 
   openModal('Novo Pedido', `
-    <form id="new-order-form">
+    <form id="new-order-form" class="order-editor">
       <div class="form-row">
         <div class="form-group">
-          <label>Nome completo do cliente</label>
+          <label for="order-client-name">Nome completo do cliente</label>
           <input type="text" id="order-client-name" placeholder="Ex: Ana Paula Silva" required>
         </div>
         <div class="form-group">
-          <label>WhatsApp</label>
-          <input type="tel" id="order-client-whatsapp" placeholder="Ex: 37999887766" required>
+          <label for="order-client-whatsapp">WhatsApp</label>
+          <input type="tel" id="order-client-whatsapp" placeholder="Ex: 27999999999" required>
         </div>
       </div>
       <div class="form-group">
-        <label>Cliente já cadastrado (opcional)</label>
+        <label for="order-client-select">Cliente já cadastrado (opcional)</label>
         <select id="order-client-select">
-          <option value="">Preencher na mão...</option>
+          <option value="">Preencher na mão…</option>
           ${clients.map(c => `<option value="${c.id}" data-name="${escapeHtml(c.name)}" data-phone="${escapeHtml(c.phone || '')}">${escapeHtml(c.name)} — ${escapeHtml(c.phone || 'sem WPP')}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group">
-        <label>Adicionar Item</label>
-        <div class="add-item-row">
-          <select id="add-product">
-            <option value="">Produto...</option>
-            ${products.map(p => `<option value="${p.id}" data-name="${escapeHtml(p.name)}" data-price="${p.price}">${escapeHtml(p.name)} — ${Storage.formatCurrency(p.price)}</option>`).join('')}
-          </select>
-          <input type="number" id="add-qty" value="1" min="1" max="99">
-          <button type="button" class="btn btn--secondary btn--sm" id="add-item-btn"><i class="fas fa-plus"></i></button>
+
+      <div class="order-editor__section">
+        <div class="order-editor__section-head">
+          <h4><i class="fas fa-cookie-bite"></i> Itens do pedido</h4>
+          <span class="order-editor__count" id="new-order-items-count">0 itens</span>
+        </div>
+        <div class="order-editor__items" id="temp-items"></div>
+        <div class="order-editor__add-card">
+          <p class="order-editor__add-title"><i class="fas fa-plus-circle"></i> Adicionar produto</p>
+          <div class="order-editor__add-grid order-editor__add-grid--new">
+            <div class="form-group order-editor__add-product">
+              <label for="add-product">Produto</label>
+              <select id="add-product">
+                <option value="">Selecione um produto…</option>
+                ${products.filter((p) => p.active !== false).map(p => `<option value="${p.id}" data-name="${escapeHtml(p.name)}" data-price="${productPriceForOrder(p)}">${escapeHtml(p.name)} — ${Storage.formatCurrency(productPriceForOrder(p))}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group order-editor__add-qty">
+              <label for="add-qty">Qtd</label>
+              <input type="number" id="add-qty" value="1" min="1" max="99">
+            </div>
+            <div class="order-editor__add-action">
+              <button type="button" class="btn btn--primary btn--sm" id="add-item-btn"><i class="fas fa-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <div class="order-editor__totals order-editor__totals--compact">
+          <div class="order-editor__totals-final"><span>Total do pedido</span><strong id="order-total-display">R$ 0,00</strong></div>
         </div>
       </div>
-      <div class="order-items-list" id="temp-items"><p style="color:#999;text-align:center">Nenhum item adicionado</p></div>
-      <p id="order-total-display" style="text-align:right;font-weight:700"></p>
+
       <div class="modal__actions">
         <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn--primary">Criar Pedido</button>
+        <button type="submit" class="btn btn--primary"><i class="fas fa-check"></i> Criar pedido</button>
       </div>
     </form>
   `);
@@ -1331,19 +1634,42 @@ function openNewOrderModal() {
 
   function renderTempItems() {
     const container = document.getElementById('temp-items');
+    const countEl = document.getElementById('new-order-items-count');
+    const totalEl = document.getElementById('order-total-display');
     if (tempItems.length === 0) {
-      container.innerHTML = '<p style="color:#999;text-align:center">Nenhum item adicionado</p>';
-      document.getElementById('order-total-display').textContent = '';
+      container.innerHTML = `
+        <div class="order-editor__empty">
+          <i class="fas fa-shopping-basket" aria-hidden="true"></i>
+          <p>Nenhum item adicionado</p>
+          <small>Escolha um produto acima</small>
+        </div>
+      `;
+      if (countEl) countEl.textContent = '0 itens';
+      if (totalEl) totalEl.textContent = Storage.formatCurrency(0);
       return;
     }
     const total = tempItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const count = tempItems.reduce((s, i) => s + (Number(i.qty) || 0), 0);
     container.innerHTML = tempItems.map((item, idx) => `
-      <div class="order-item-row">
-        <span>${item.qty}x ${item.name}</span>
-        <span>${Storage.formatCurrency(item.price * item.qty)} <button type="button" onclick="removeTempItem(${idx})" style="color:red;margin-left:8px"><i class="fas fa-times"></i></button></span>
+      <div class="order-editor__item">
+        <div class="order-editor__item-top">
+          <div class="order-editor__item-badge"><i class="fas fa-cookie-bite" aria-hidden="true"></i></div>
+          <div class="order-editor__item-info">
+            <strong class="order-editor__item-name">${escapeHtml(item.name)}</strong>
+            <span class="order-editor__item-flavor">${item.qty}x · ${Storage.formatCurrency(item.price)} cada</span>
+          </div>
+          <span class="order-editor__item-price">${Storage.formatCurrency(item.price * item.qty)}</span>
+        </div>
+        <div class="order-editor__item-footer order-editor__item-footer--simple">
+          <button type="button" class="order-editor__remove" onclick="removeTempItem(${idx})" title="Remover item">
+            <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            <span>Remover</span>
+          </button>
+        </div>
       </div>
     `).join('');
-    document.getElementById('order-total-display').textContent = 'Total: ' + Storage.formatCurrency(total);
+    if (countEl) countEl.textContent = `${count} ${count === 1 ? 'item' : 'itens'}`;
+    if (totalEl) totalEl.textContent = Storage.formatCurrency(total);
   }
 
   window.removeTempItem = (idx) => { tempItems.splice(idx, 1); renderTempItems(); };
@@ -1356,6 +1682,8 @@ function openNewOrderModal() {
     tempItems.push({ productId: opt.value, name: opt.dataset.name, price: parseFloat(opt.dataset.price), qty });
     renderTempItems();
   });
+
+  renderTempItems();
 
   document.getElementById('new-order-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2796,6 +3124,7 @@ window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
 window.editClient = editClient;
 window.deleteClient = deleteClient;
+window.quickShipOrder = quickShipOrder;
 window.editOrderStatus = editOrderStatus;
 window.editOrder = editOrder;
 window.openEditOrder = openEditOrder;

@@ -568,3 +568,117 @@
     padding-right: 2.75rem;
   }
 }
+
+/* Acompanhamento de pedido — cliente */
+.order-tracker {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 85;
+  width: min(28rem, calc(100vw - 1.5rem));
+  pointer-events: none;
+}
+
+.order-tracker:not([hidden]) {
+  pointer-events: auto;
+}
+
+.order-tracker__inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.9rem 0.95rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(252, 120, 144, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 40px rgba(88, 56, 24, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.order-tracker__progress {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+}
+
+.order-tracker__step {
+  height: 0.28rem;
+  border-radius: 999px;
+  background: rgba(252, 120, 144, 0.18);
+}
+
+.order-tracker__step.is-done {
+  background: linear-gradient(90deg, var(--color-pink), var(--color-pink-deep));
+}
+
+.order-tracker__step.is-current {
+  background: linear-gradient(90deg, var(--color-pink-deep), #f9a8b8);
+  box-shadow: 0 0 0 1px rgba(232, 90, 118, 0.15);
+}
+
+.order-tracker__eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-pink-deep);
+}
+
+.order-tracker__status {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--color-brown-deep);
+}
+
+.order-tracker__hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--color-brown-soft);
+}
+
+.order-tracker__number {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-pink-deep);
+}
+
+.order-tracker__close {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(252, 120, 144, 0.12);
+  color: var(--color-brown-deep);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.order-tracker--finalizado .order-tracker__inner {
+  border-color: rgba(76, 175, 80, 0.28);
+}
+
+.order-tracker--cancelado .order-tracker__inner {
+  border-color: rgba(244, 67, 54, 0.28);
+}
+
+body.has-order-tracker .whatsapp-float {
+  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 520px) {
+  .order-tracker {
+    width: calc(100vw - 1rem);
+  }
+
+  body.has-order-tracker .whatsapp-float {
+    bottom: calc(7.25rem + env(safe-area-inset-bottom, 0px));
+  }
+}

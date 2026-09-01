@@ -180,8 +180,8 @@ window.AuroraCart = (() => {
     return Storage.calcCouponDiscount(live, subtotal());
   }
 
-  function payable() {
-    const fee = getFulfillment() === 'entrega' ? getDeliveryFee() : 0;
+  function payable(address) {
+    const fee = getFulfillment() === 'entrega' ? getDeliveryFee(address) : 0;
     return Math.max(0, subtotal() - discount() + fee);
   }
 
@@ -276,10 +276,23 @@ window.AuroraCart = (() => {
     return 'entrega';
   }
 
-  function getDeliveryFee() {
-    if (typeof Storage === 'undefined') return 7;
+  function getDeliveryFee(address) {
+    const addr = address !== undefined ? address : loadCustomer().address;
+    if (window.PipocandoDelivery) {
+      const resolved = PipocandoDelivery.resolveFromAddress(addr);
+      if (resolved.known) return resolved.fee;
+      return 0;
+    }
+    if (typeof Storage === 'undefined') return 0;
     const n = Number(Storage.getSettings()?.deliveryFee);
-    return Number.isFinite(n) && n >= 0 ? n : 5;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function resolveDelivery(address) {
+    if (window.PipocandoDelivery) {
+      return PipocandoDelivery.resolveFromAddress(address);
+    }
+    return { known: false, fee: 0, city: '', label: '' };
   }
 
   function getDeliveryNote() {
@@ -330,8 +343,16 @@ window.AuroraCart = (() => {
   }
 
   function fulfillmentBlock(_mode, address = '') {
-    const zones = getDeliveryNote();
     const addr = String(address || '').trim();
+    const resolved = resolveDelivery(addr);
+    if (resolved.known) {
+      return (
+        `FORMA: Entrega\n` +
+        `Entrega ${resolved.label}: ${formatMoney(resolved.fee)}\n` +
+        `Endereço: ${addr}`
+      );
+    }
+    const zones = getDeliveryNote();
     return (
       `FORMA: Entrega\n` +
       `Taxas: ${zones}\n` +
@@ -350,7 +371,7 @@ window.AuroraCart = (() => {
       ? Storage.calcCouponDiscount(live, sub)
       : 0;
     const mode = 'entrega';
-    const fee = getDeliveryFee();
+    const fee = getDeliveryFee(address);
     const total = Math.max(0, sub - disc + fee);
     const pay = payment || getPayment();
 
@@ -413,7 +434,7 @@ window.AuroraCart = (() => {
     getCoupon, setCoupon, refreshCoupon, resolveLiveCoupon,
     loadCustomer, saveCustomer, getFulfillment, setFulfillment,
     getPayment, setPayment, paymentLabel, paymentWhatsAppLine,
-    getDeliveryFee, getDeliveryNote, formatMoney, formatPhoneBR,
+    getDeliveryFee, resolveDelivery, getDeliveryNote, formatMoney, formatPhoneBR,
     buildWhatsAppMessage, syncFromStorage,
   };
 })();

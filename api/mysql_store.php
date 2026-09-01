@@ -1165,9 +1165,13 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
     $chk->execute([$orderId]);
     $existingNumber = $chk->fetchColumn();
     if ($existingNumber) {
+      $st = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+      $st->execute([$orderId]);
       return [
         'ok' => true,
+        'orderId' => $orderId,
         'orderNumber' => $existingNumber,
+        'status' => (string) ($st->fetchColumn() ?: 'novo'),
         'duplicated' => true,
         'loyalty' => aurora_loyalty_stats_safe($pdo, $phone),
       ];
@@ -1186,9 +1190,12 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
     $dup->execute([$phone, $name, $total]);
     $dupNumber = $dup->fetchColumn();
     if ($dupNumber) {
+      $st = $pdo->prepare('SELECT status FROM orders WHERE number = ? LIMIT 1');
+      $st->execute([$dupNumber]);
       return [
         'ok' => true,
         'orderNumber' => $dupNumber,
+        'status' => (string) ($st->fetchColumn() ?: 'novo'),
         'duplicated' => true,
         'loyalty' => aurora_loyalty_stats_safe($pdo, $phone),
       ];
@@ -1222,9 +1229,14 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
 
     $ins = $pdo->prepare(
       'INSERT INTO orders (
-        id, number, client_id, client_name, client_whatsapp, total, status, ordered_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())'
+        id, number, client_id, client_name, client_whatsapp, total, status, ordered_at,
+        notes, delivery_fee, discount, waive_delivery
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)'
     );
+    $orderNotes = trim((string) ($order['notes'] ?? ''));
+    $orderDeliveryFee = max(0, (float) ($order['deliveryFee'] ?? 0));
+    $orderDiscount = max(0, (float) ($order['discount'] ?? 0));
+    $orderWaive = !empty($order['waiveDelivery']) ? 1 : 0;
     $ins->execute([
       $orderId,
       $orderNumber,
@@ -1233,6 +1245,10 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
       $phone,
       $total,
       'novo',
+      $orderNotes !== '' ? $orderNotes : null,
+      $orderDeliveryFee,
+      $orderDiscount,
+      $orderWaive,
     ]);
 
     $itemStmt = $pdo->prepare(
@@ -1258,8 +1274,59 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
 
   return [
     'ok' => true,
+    'orderId' => $orderId,
     'orderNumber' => $orderNumber,
+    'status' => 'novo',
     'loyalty' => aurora_loyalty_stats_safe($pdo, $phone),
+  ];
+}
+
+/**
+ * Status público do pedido — exige WhatsApp que bate com o cadastro do pedido.
+ */
+function aurora_get_public_order_status(PDO $pdo, string $phone, string $orderNumber = ''): ?array {
+  $phone = preg_replace('/\D+/', '', $phone);
+  if ($phone === '') {
+    return null;
+  }
+
+  $orderNumber = trim($orderNumber);
+  if ($orderNumber !== '') {
+    $stmt = $pdo->prepare(
+      'SELECT number, status, total, ordered_at
+       FROM orders
+       WHERE number = ? AND client_whatsapp = ?
+       LIMIT 1'
+    );
+    $stmt->execute([$orderNumber, $phone]);
+  } else {
+    $stmt = $pdo->prepare(
+      "SELECT number, status, total, ordered_at
+       FROM orders
+       WHERE client_whatsapp = ?
+         AND status NOT IN ('finalizado', 'cancelado')
+       ORDER BY ordered_at DESC
+       LIMIT 1"
+    );
+    $stmt->execute([$phone]);
+  }
+
+  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  if (!$row) {
+    return null;
+  }
+
+  $status = (string) ($row['status'] ?? 'novo');
+  $allowed = ['novo', 'preparo', 'entrega', 'finalizado', 'cancelado'];
+  if (!in_array($status, $allowed, true)) {
+    $status = 'novo';
+  }
+
+  return [
+    'orderNumber' => (string) ($row['number'] ?? ''),
+    'status' => $status,
+    'total' => (float) ($row['total'] ?? 0),
+    'orderedAt' => (string) ($row['ordered_at'] ?? ''),
   ];
 }
 

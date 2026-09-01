@@ -1226,7 +1226,7 @@ const Storage = (() => {
     }
   }
 
-  async function createPublicOrder({ fullName, whatsapp, items, total, notes, address }) {
+  async function createPublicOrder({ fullName, whatsapp, items, total, notes, address, deliveryFee, discount }) {
     const phone = String(whatsapp || '').replace(/\D/g, '');
     const name = String(fullName || '').trim();
     const clientAddress = String(address || '').trim().slice(0, 280);
@@ -1282,6 +1282,9 @@ const Storage = (() => {
       status: 'novo',
       date: new Date().toISOString(),
       notes: notes || '',
+      deliveryFee: Math.max(0, Number(deliveryFee) || 0),
+      discount: Math.max(0, Number(discount) || 0),
+      waiveDelivery: false,
       source: 'site',
     };
 
@@ -1303,6 +1306,8 @@ const Storage = (() => {
         const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.orderNumber) order.number = result.orderNumber;
+          if (result.orderId) order.id = result.orderId;
+          if (result.status) order.status = result.status;
           if (result.loyalty) loyalty = result.loyalty;
           data.orders.push(order);
           setMemory(data);
@@ -1328,6 +1333,50 @@ const Storage = (() => {
     return { ok: false, error: lastError };
   }
 
+  async function getOrderStatus(phone, orderNumber = '') {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) {
+      return { ok: false, error: 'Informe o WhatsApp do pedido.' };
+    }
+    if (location.protocol === 'file:') {
+      const data = getMemory();
+      const list = (data.orders || []).filter((o) => String(o.clientWhatsapp || '').replace(/\D/g, '') === digits);
+      const order = orderNumber
+        ? list.find((o) => String(o.number || '') === String(orderNumber))
+        : list.find((o) => !['finalizado', 'cancelado'].includes(String(o.status || '')));
+      if (!order) return { ok: false, error: 'Pedido não encontrado.' };
+      return {
+        ok: true,
+        order: {
+          orderNumber: order.number || '',
+          status: order.status || 'novo',
+          total: Number(order.total) || 0,
+          orderedAt: order.date || '',
+        },
+      };
+    }
+
+    clearApiBreaker();
+    try {
+      const res = await apiFetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'order_status',
+          phone: digits,
+          orderNumber: String(orderNumber || '').trim(),
+        }),
+      }, 15000, { force: true });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok && result.ok && result.order) {
+        return { ok: true, order: result.order };
+      }
+      return { ok: false, error: result.error || 'Pedido não encontrado.' };
+    } catch {
+      return { ok: false, error: 'Sem conexão para consultar o pedido.' };
+    }
+  }
+
   return {
     init, getAll, save,
     getSettings, saveSettings,
@@ -1346,7 +1395,7 @@ const Storage = (() => {
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,
     isCloudEnabled, wasLoadedFromCache, setAdminPassword, getAdminPassword,
     startCloudPolling, stopCloudPolling, notifyUpdated,
-    createPublicOrder, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
+    createPublicOrder, getOrderStatus, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
     sortProductsList, sortCategoriesList, applyProductSortOrders, applyCategorySortOrders,
     saveCatalogOrderAsync, nextProductSortOrder,
     probeCloud, reconnectCloud, apiCoolingDown, clearApiBreaker,

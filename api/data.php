@@ -212,7 +212,7 @@ if ($method === 'POST') {
   }
 
   // Pedido / fidelidade / ordem do cardápio — conexão leve (sem ALTER/schema pesado)
-  if ($actionName === 'loyalty_status' || $actionName === 'create_order' || $actionName === 'save_catalog_order') {
+  if ($actionName === 'loyalty_status' || $actionName === 'create_order' || $actionName === 'order_status' || $actionName === 'save_catalog_order') {
     try {
       $pdo = aurora_db(false);
     } catch (Throwable $e) {
@@ -236,6 +236,23 @@ if ($method === 'POST') {
       json_out(['ok' => true, 'loyalty' => aurora_loyalty_stats_safe($pdo, $phone)]);
     } catch (Throwable $e) {
       json_out(['error' => 'Falha ao consultar fidelidade', 'detail' => $e->getMessage()], 500);
+    }
+  }
+
+  if ($actionName === 'order_status') {
+    if (!aurora_db_ready($pdo)) {
+      json_out(['error' => 'Sistema ainda não inicializado no MySQL.'], 503);
+    }
+    $phone = (string) ($body['phone'] ?? $body['whatsapp'] ?? '');
+    $orderNumber = (string) ($body['orderNumber'] ?? $body['number'] ?? '');
+    try {
+      $status = aurora_get_public_order_status($pdo, $phone, $orderNumber);
+      if (!$status) {
+        json_out(['ok' => false, 'error' => 'Pedido não encontrado para este WhatsApp.'], 404);
+      }
+      json_out(['ok' => true, 'order' => $status]);
+    } catch (Throwable $e) {
+      json_out(['error' => 'Falha ao consultar pedido', 'detail' => $e->getMessage()], 500);
     }
   }
 

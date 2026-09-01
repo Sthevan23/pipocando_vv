@@ -180,15 +180,78 @@ function setFulfillment(_value) {
 function syncFulfillmentUI() {
   const deliveryNote = document.getElementById('cart-delivery-note');
   const addressWrap = document.getElementById('cart-address-wrap');
+  const addressHint = document.getElementById('cart-address-hint');
   const checkoutOpen = !document.getElementById('cart-checkout')?.hidden;
   const hasItems = cartItems.length > 0 && checkoutOpen;
-  if (deliveryNote) deliveryNote.hidden = !hasItems;
+  const address = getCartAddressForFee();
+  const delivery = resolveDeliveryForCart();
+
+  if (deliveryNote) {
+    if (hasItems && delivery.known) {
+      deliveryNote.innerHTML = `Frete <strong>${delivery.label}</strong>: <strong>${Storage.formatCurrency(delivery.fee)}</strong> — aplicado no total`;
+    } else if (hasItems) {
+      deliveryNote.innerHTML = `Frete fixo: <strong>${getDeliveryNote()}</strong>`;
+    }
+    deliveryNote.hidden = !hasItems;
+  }
+  if (addressHint) {
+    addressHint.textContent = delivery.known
+      ? `Entrega em ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}`
+      : 'Escolha a cidade ou escreva no endereço (Vila Velha, Vitória ou Cariacica).';
+  }
   if (addressWrap) addressWrap.hidden = !hasItems;
 }
 
+function getCartCityId() {
+  return document.getElementById('cart-city')?.value?.trim() || loadCustomer().city || '';
+}
+
+function getCartAddressForFee() {
+  const fromDom = document.getElementById('cart-address')?.value?.trim();
+  if (fromDom) return fromDom;
+  return Cart?.loadCustomer?.()?.address || loadCustomer().address || '';
+}
+
+function resolveDeliveryFromAddress(address) {
+  if (window.PipocandoDelivery) {
+    return PipocandoDelivery.resolveFromAddress(address);
+  }
+  if (Cart?.resolveDelivery) return Cart.resolveDelivery(address);
+  return { known: false, fee: 0, city: '', label: '' };
+}
+
+function resolveDeliveryForCart() {
+  const cityId = getCartCityId();
+  const address = getCartAddressForFee();
+  if (window.PipocandoDelivery?.resolve) {
+    return PipocandoDelivery.resolve(cityId, address);
+  }
+  if (cityId && window.PipocandoDelivery?.resolveFromCityId) {
+    const fromCity = PipocandoDelivery.resolveFromCityId(cityId);
+    if (fromCity.known) return fromCity;
+  }
+  return resolveDeliveryFromAddress(address);
+}
+
+function syncCartCityFromAddress() {
+  const address = document.getElementById('cart-address')?.value || '';
+  const resolved = resolveDeliveryFromAddress(address);
+  const citySelect = document.getElementById('cart-city');
+  if (!citySelect || !resolved.known) return;
+  citySelect.value = resolved.city;
+}
+
 function fulfillmentWhatsAppBlock(_mode, address = '') {
-  const zones = formatDeliveryZonesText();
   const addr = String(address || '').trim();
+  const delivery = resolveDeliveryForCart();
+  if (delivery.known) {
+    return (
+      `FORMA: Entrega\n` +
+      `Entrega ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}\n` +
+      `Endereço: ${addr}`
+    );
+  }
+  const zones = formatDeliveryZonesText();
   return (
     `FORMA: Entrega\n` +
     `Taxas: ${zones}\n` +
@@ -197,8 +260,11 @@ function fulfillmentWhatsAppBlock(_mode, address = '') {
 }
 
 function getDeliveryFee() {
-  const n = Number(Storage.getSettings()?.deliveryFee);
-  return Number.isFinite(n) && n >= 0 ? n : 5;
+  const delivery = resolveDeliveryForCart();
+  if (delivery.known) return delivery.fee;
+  const address = getCartAddressForFee();
+  if (Cart) return Cart.getDeliveryFee(address);
+  return 0;
 }
 
 function getDeliveryNote() {
@@ -241,28 +307,30 @@ function loadCustomer() {
     const raw = localStorage.getItem(CUSTOMER_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== 'object') {
-      return { nome: '', sobrenome: '', phone: '', address: '' };
+      return { nome: '', sobrenome: '', phone: '', address: '', city: '' };
     }
     return {
       nome: String(parsed.nome || '').trim(),
       sobrenome: String(parsed.sobrenome || '').trim(),
       phone: String(parsed.phone || '').replace(/\D/g, ''),
       address: String(parsed.address || '').trim(),
+      city: String(parsed.city || '').trim(),
     };
   } catch {
     return { nome: '', sobrenome: '', phone: '', address: '' };
   }
 }
 
-function saveCustomer({ nome, sobrenome, phone, address } = {}) {
+function saveCustomer({ nome, sobrenome, phone, address, city } = {}) {
   const prev = loadCustomer();
   const data = {
     nome: String(nome !== undefined ? nome : prev.nome).trim(),
     sobrenome: String(sobrenome !== undefined ? sobrenome : prev.sobrenome).trim(),
     phone: String(phone !== undefined ? phone : prev.phone).replace(/\D/g, '').slice(0, 11),
     address: String(address !== undefined ? address : prev.address).trim().slice(0, 280),
+    city: String(city !== undefined ? city : prev.city).trim(),
   };
-  if (!data.nome && !data.sobrenome && !data.phone && !data.address) return;
+  if (!data.nome && !data.sobrenome && !data.phone && !data.address && !data.city) return;
   localStorage.setItem(CUSTOMER_KEY, JSON.stringify(data));
 }
 
@@ -280,6 +348,7 @@ function readCustomerFromCart() {
     sobrenome: document.getElementById('cart-sobrenome')?.value.trim() || '',
     phone: document.getElementById('cart-phone')?.value || '',
     address: document.getElementById('cart-address')?.value.trim() || '',
+    city: document.getElementById('cart-city')?.value.trim() || '',
   };
 }
 
@@ -315,9 +384,14 @@ function fillCustomerFields() {
   const cartSobrenome = document.getElementById('cart-sobrenome');
   const cartPhone = document.getElementById('cart-phone');
   const cartAddress = document.getElementById('cart-address');
+  const cartCity = document.getElementById('cart-city');
   if (cartNome) cartNome.value = c.nome;
   if (cartSobrenome) cartSobrenome.value = c.sobrenome;
   if (cartAddress) cartAddress.value = c.address || '';
+  if (cartCity) {
+    const savedCity = c.city || resolveDeliveryFromAddress(c.address).city || '';
+    cartCity.value = savedCity;
+  }
   if (cartPhone) {
     cartPhone.value = c.phone ? formatPhoneBR(c.phone) : '';
     bindPhoneMask(cartPhone);
@@ -361,7 +435,14 @@ function cartDiscount() {
 }
 
 function cartPayable() {
-  return Cart ? Cart.payable() : Math.max(0, cartTotal() - cartDiscount());
+  const delivery = resolveDeliveryForCart();
+  const fee = getFulfillment() === 'entrega' && delivery.known ? delivery.fee : 0;
+  if (Cart) {
+    const sub = Cart.subtotal();
+    const disc = Cart.discount();
+    return Math.max(0, sub - disc + fee);
+  }
+  return Math.max(0, cartTotal() - cartDiscount() + fee);
 }
 
 function resolveLiveCoupon(coupon) {
@@ -559,13 +640,17 @@ function buildOrderWhatsAppMessage({ product, fullName, phone, flavor, unit }) {
   });
 }
 
-function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty, address, payment }) {
+function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty, address, payment, delivery: deliveryOverride }) {
   const s = Storage.getSettings();
   const storeName = (s.name || 'Aurora Confeitaria Artesanal').toUpperCase();
   const subtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
   const coupon = appliedCoupon ? resolveLiveCoupon(appliedCoupon) : null;
   const discount = coupon ? Storage.calcCouponDiscount(coupon, subtotal) : 0;
-  const total = Math.max(0, subtotal - discount);
+  const delivery = deliveryOverride?.known
+    ? deliveryOverride
+    : (resolveDeliveryFromAddress(address).known ? resolveDeliveryFromAddress(address) : resolveDeliveryForCart());
+  const fee = delivery.known ? delivery.fee : getDeliveryFee();
+  const total = Math.max(0, subtotal - discount + fee);
   const mode = 'entrega';
   const pay = payment || (Cart?.getPayment?.() || 'pix');
   const payLabel = Cart?.paymentLabel?.(pay)
@@ -2029,6 +2114,7 @@ function renderCartUI() {
   const totalRow = document.getElementById('cart-total-row');
   const finalRow = document.getElementById('cart-final-row');
   const discountRow = document.getElementById('cart-discount-row');
+  const deliveryRow = document.getElementById('cart-delivery-row');
   const discountEl = document.getElementById('cart-discount');
   const couponLabel = document.getElementById('cart-coupon-label');
   const couponBox = document.getElementById('cart-coupon');
@@ -2056,6 +2142,7 @@ function renderCartUI() {
 
   const discount = cartDiscount();
   const payable = cartPayable();
+  const delivery = resolveDeliveryForCart();
 
   if (countEl) {
     countEl.textContent = String(count);
@@ -2085,7 +2172,13 @@ function renderCartUI() {
   }
 
   const showDiscount = lines > 0 && discount > 0;
-  if (totalRow) totalRow.hidden = !showDiscount; // subtotal só com desconto
+  const showDelivery = lines > 0 && delivery.known && delivery.fee > 0;
+  const deliveryCityEl = document.getElementById('cart-delivery-city');
+  const deliveryFeeEl = document.getElementById('cart-delivery-fee');
+  if (deliveryRow) deliveryRow.hidden = !showDelivery;
+  if (deliveryCityEl) deliveryCityEl.textContent = delivery.label ? `(${delivery.label})` : '';
+  if (deliveryFeeEl && showDelivery) deliveryFeeEl.textContent = Storage.formatCurrency(delivery.fee);
+  if (totalRow) totalRow.hidden = !(showDiscount || showDelivery);
   if (discountRow) {
     discountRow.hidden = !showDiscount;
     discountRow.style.display = showDiscount ? '' : 'none';
@@ -2096,7 +2189,6 @@ function renderCartUI() {
     couponBox.style.display = (lines === 0 || !hasActiveCoupons) ? 'none' : '';
   }
   const deliveryNote = document.getElementById('cart-delivery-note');
-  if (deliveryNote) deliveryNote.hidden = true;
   syncFulfillmentUI();
 
   if (discountEl) discountEl.textContent = `− ${Storage.formatCurrency(discount)}`;
@@ -2133,6 +2225,7 @@ function renderCartUI() {
       discountRow.style.display = 'none';
     }
     if (finalRow) finalRow.hidden = true;
+    if (deliveryRow) deliveryRow.hidden = true;
     if (couponBox) {
       couponBox.hidden = true;
       couponBox.style.display = 'none';
@@ -2296,13 +2389,22 @@ async function checkoutCart() {
     document.getElementById('cart-address')?.focus();
     return;
   }
+  const delivery = resolveDeliveryForCart();
+  if (!delivery.known) {
+    if (error) {
+      error.textContent = 'Selecione a cidade ou informe Vila Velha, Vitória ou Cariacica no endereço.';
+      error.hidden = false;
+    }
+    document.getElementById('cart-city')?.focus();
+    return;
+  }
 
   const payment = Cart?.setPayment?.(
     document.querySelector('input[name="cart-payment"]:checked')?.value || Cart.getPayment()
   ) || document.querySelector('input[name="cart-payment"]:checked')?.value || 'pix';
 
   if (error) error.hidden = true;
-  saveCustomer({ nome, sobrenome, phone, address });
+  saveCustomer({ nome, sobrenome, phone, address, city: delivery.city });
   const fullName = `${nome} ${sobrenome}`;
   const discount = cartDiscount();
   const payable = cartPayable();
@@ -2321,6 +2423,7 @@ async function checkoutCart() {
 
   const notesParts = [
     'Entrega',
+    delivery.label ? `Cidade: ${delivery.label} — Frete ${Storage.formatCurrency(delivery.fee)}` : '',
     address ? `Endereço: ${address}` : '',
     `Pagamento: ${Cart?.paymentWhatsAppLine?.(payment)?.replace(/\n/g, ' — ') || Cart?.paymentLabel?.(payment) || payment}`,
     itemsSnapshot.map((i) => {
@@ -2352,6 +2455,8 @@ async function checkoutCart() {
       image: item.image || '',
     })),
     total: payable,
+    deliveryFee: delivery.fee,
+    discount,
     notes: notesParts.filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
@@ -2374,8 +2479,10 @@ async function checkoutCart() {
     fulfillment,
     address,
     payment,
+    delivery,
     loyalty: saved?.loyalty || null,
   });
+  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();
   closeCart();
   if (btn) {
@@ -2421,6 +2528,154 @@ function openWhatsAppChat(text) {
   }
   const win = window.open(url, '_blank');
   if (!win) window.location.href = url;
+}
+
+const ORDER_TRACK_KEY = 'pipocando_active_order_v1';
+const ORDER_TRACK_DISMISS_KEY = 'pipocando_order_track_dismiss_v1';
+let orderTrackTimer = null;
+
+const CUSTOMER_ORDER_STATUS = {
+  novo: { label: 'Pedido recebido', hint: 'Recebemos seu pedido! Em breve começamos a preparar.', step: 1 },
+  preparo: { label: 'Sendo preparado', hint: 'Suas pipocas estão sendo preparadas com carinho.', step: 2 },
+  entrega: { label: 'Saindo para entrega', hint: 'Seu pedido saiu para entrega. Fique de olho no WhatsApp!', step: 3 },
+  finalizado: { label: 'Pedido entregue', hint: 'Obrigado! Esperamos que você ame suas pipocas.', step: 4 },
+  cancelado: { label: 'Pedido cancelado', hint: 'Este pedido foi cancelado. Fale conosco no WhatsApp se precisar.', step: 0 },
+};
+
+function loadActiveOrderTrack() {
+  try {
+    const raw = localStorage.getItem(ORDER_TRACK_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveOrderTrack(phone, order) {
+  if (!phone || !order) return;
+  const payload = {
+    phone: String(phone).replace(/\D/g, ''),
+    orderNumber: String(order.number || order.orderNumber || ''),
+    status: order.status || 'novo',
+    savedAt: Date.now(),
+  };
+  if (!payload.orderNumber) return;
+  localStorage.setItem(ORDER_TRACK_KEY, JSON.stringify(payload));
+  sessionStorage.removeItem(ORDER_TRACK_DISMISS_KEY);
+  renderOrderTracker(payload);
+  startOrderTrackPolling();
+}
+
+function renderOrderTracker(track, remote) {
+  const el = document.getElementById('order-tracker');
+  if (!el || !track?.orderNumber) return;
+  if (sessionStorage.getItem(ORDER_TRACK_DISMISS_KEY) === '1') {
+    el.hidden = true;
+    document.body.classList.remove('has-order-tracker');
+    return;
+  }
+
+  const status = remote?.status || track.status || 'novo';
+  const meta = CUSTOMER_ORDER_STATUS[status] || CUSTOMER_ORDER_STATUS.novo;
+  const number = remote?.orderNumber || track.orderNumber;
+
+  el.className = 'order-tracker';
+  if (status === 'finalizado') el.classList.add('order-tracker--finalizado');
+  if (status === 'cancelado') el.classList.add('order-tracker--cancelado');
+
+  const progress = document.getElementById('order-tracker-progress');
+  if (progress) {
+    const steps = ['Recebido', 'Preparo', 'Entrega', 'Entregue'];
+    const currentStep = status === 'cancelado' ? 0 : (meta.step || 1);
+    progress.innerHTML = steps.map((label, i) => {
+      const idx = i + 1;
+      let cls = 'order-tracker__step';
+      if (status !== 'cancelado' && idx < currentStep) cls += ' is-done';
+      else if (status !== 'cancelado' && idx === currentStep) cls += ' is-current';
+      return `<span class="${cls}" title="${label}"></span>`;
+    }).join('');
+  }
+
+  const statusEl = document.getElementById('order-tracker-status');
+  const hintEl = document.getElementById('order-tracker-hint');
+  const numberEl = document.getElementById('order-tracker-number');
+  if (statusEl) statusEl.textContent = meta.label;
+  if (hintEl) hintEl.textContent = meta.hint;
+  if (numberEl) numberEl.textContent = `#${number}`;
+
+  el.hidden = false;
+  document.body.classList.add('has-order-tracker');
+  localStorage.setItem(ORDER_TRACK_KEY, JSON.stringify({ ...track, orderNumber: number, status }));
+}
+
+async function refreshOrderTracker() {
+  const track = loadActiveOrderTrack();
+  if (!track?.phone) return;
+  if (!Storage.getOrderStatus) {
+    renderOrderTracker(track);
+    return;
+  }
+  const res = await Storage.getOrderStatus(track.phone, track.orderNumber);
+  if (!res?.ok || !res.order) {
+    if (['finalizado', 'cancelado'].includes(track.status)) renderOrderTracker(track);
+    return;
+  }
+  renderOrderTracker(track, res.order);
+  if (['finalizado', 'cancelado'].includes(res.order.status)) stopOrderTrackPolling();
+}
+
+function startOrderTrackPolling() {
+  stopOrderTrackPolling();
+  orderTrackTimer = window.setInterval(() => {
+    refreshOrderTracker().catch(() => {});
+  }, 45000);
+}
+
+function stopOrderTrackPolling() {
+  if (orderTrackTimer) {
+    clearInterval(orderTrackTimer);
+    orderTrackTimer = null;
+  }
+}
+
+function initOrderTracker() {
+  document.getElementById('order-tracker-close')?.addEventListener('click', () => {
+    sessionStorage.setItem(ORDER_TRACK_DISMISS_KEY, '1');
+    const el = document.getElementById('order-tracker');
+    if (el) el.hidden = true;
+    document.body.classList.remove('has-order-tracker');
+  });
+
+  document.getElementById('footer-track-order')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem(ORDER_TRACK_DISMISS_KEY);
+    const track = loadActiveOrderTrack();
+    if (track?.phone) {
+      refreshOrderTracker();
+      return;
+    }
+    const phone = normalizePhoneBR(document.getElementById('cart-phone')?.value || '');
+    if (phone.length >= 10 && Storage.getOrderStatus) {
+      Storage.getOrderStatus(phone).then((res) => {
+        if (!res?.ok || !res.order) return;
+        saveActiveOrderTrack(phone, { number: res.order.orderNumber, status: res.order.status });
+      });
+      return;
+    }
+    document.getElementById('contato')?.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && loadActiveOrderTrack()) {
+      refreshOrderTracker().catch(() => {});
+    }
+  });
+
+  const track = loadActiveOrderTrack();
+  if (track?.orderNumber) {
+    refreshOrderTracker();
+    if (!['finalizado', 'cancelado'].includes(track.status)) startOrderTrackPolling();
+  }
 }
 
 async function finalizeOrder() {
@@ -2525,6 +2780,7 @@ async function finalizeOrder() {
     }],
   });
 
+  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   closeLightbox();
   if (btn) {
     btn.disabled = false;
@@ -2664,6 +2920,19 @@ function initCart() {
       saveCustomer(readCustomerFromCart());
     });
   });
+  document.getElementById('cart-address')?.addEventListener('input', () => {
+    syncCartCityFromAddress();
+    scheduleRenderCartUI();
+  });
+  document.getElementById('cart-address')?.addEventListener('change', () => {
+    syncCartCityFromAddress();
+    saveCustomer(readCustomerFromCart());
+    scheduleRenderCartUI();
+  });
+  document.getElementById('cart-city')?.addEventListener('change', () => {
+    saveCustomer(readCustomerFromCart());
+    scheduleRenderCartUI();
+  });
   bindPhoneMask(document.getElementById('cart-phone'));
 }
 
@@ -2787,6 +3056,7 @@ function mountSite({ withInit = false } = {}) {
   initContactForm();
   initHeroWords();
   initParallax();
+  initOrderTracker();
 }
 
 async function boot() {
