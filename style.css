@@ -1599,6 +1599,64 @@ p {
   font-weight: 650;
 }
 
+.cart-zones {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.cart-zone {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  padding: 0.65rem 0.35rem;
+  border: 1.5px solid color-mix(in srgb, var(--color-pink) 25%, #e8dde1);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-brown);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  font: inherit;
+  text-align: center;
+}
+
+.cart-zone:hover {
+  border-color: var(--color-pink);
+  background: color-mix(in srgb, var(--color-pink) 6%, #fff);
+}
+
+.cart-zone.is-active {
+  border-color: var(--color-pink-deep);
+  background: linear-gradient(180deg, #fff5f8 0%, #fff 100%);
+  box-shadow: 0 4px 14px rgba(194, 24, 91, 0.12);
+  transform: translateY(-1px);
+}
+
+.cart-zone__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cart-zone__fee {
+  font-family: var(--font-nums);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-pink-deep);
+}
+
+.cart-zone__status {
+  margin: 0 0 0.85rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-pink) 8%, transparent);
+  color: var(--color-brown-soft);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .fulfillment {
   display: grid;
   grid-template-columns: 1fr 1fr;

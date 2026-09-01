@@ -177,27 +177,44 @@ function setFulfillment(_value) {
   return 'entrega';
 }
 
+function setCartCity(cityId) {
+  const id = String(cityId || '').trim();
+  const input = document.getElementById('cart-city');
+  if (input) input.value = id;
+  document.querySelectorAll('.cart-zone').forEach((btn) => {
+    const active = btn.dataset.city === id;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
 function syncFulfillmentUI() {
-  const deliveryNote = document.getElementById('cart-delivery-note');
+  const zonesWrap = document.getElementById('cart-zones');
+  const zoneStatus = document.getElementById('cart-zone-status');
   const addressWrap = document.getElementById('cart-address-wrap');
   const addressHint = document.getElementById('cart-address-hint');
   const checkoutOpen = !document.getElementById('cart-checkout')?.hidden;
   const hasItems = cartItems.length > 0 && checkoutOpen;
-  const address = getCartAddressForFee();
   const delivery = resolveDeliveryForCart();
 
-  if (deliveryNote) {
+  setCartCity(getCartCityId());
+
+  if (zonesWrap) zonesWrap.hidden = !hasItems;
+  if (zoneStatus) {
     if (hasItems && delivery.known) {
-      deliveryNote.innerHTML = `Frete <strong>${delivery.label}</strong>: <strong>${Storage.formatCurrency(delivery.fee)}</strong> — aplicado no total`;
+      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — já incluído no total`;
+      zoneStatus.hidden = false;
     } else if (hasItems) {
-      deliveryNote.innerHTML = `Frete fixo: <strong>${getDeliveryNote()}</strong>`;
+      zoneStatus.textContent = 'Toque na sua cidade para calcular o frete.';
+      zoneStatus.hidden = false;
+    } else {
+      zoneStatus.hidden = true;
     }
-    deliveryNote.hidden = !hasItems;
   }
   if (addressHint) {
     addressHint.textContent = delivery.known
-      ? `Entrega em ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}`
-      : 'Escolha a cidade ou escreva no endereço (Vila Velha, Vitória ou Cariacica).';
+      ? `Endereço em ${delivery.label} — frete ${Storage.formatCurrency(delivery.fee)}`
+      : 'Toque na cidade acima ou escreva Vila Velha, Vitória ou Cariacica no endereço.';
   }
   if (addressWrap) addressWrap.hidden = !hasItems;
 }
@@ -236,9 +253,8 @@ function resolveDeliveryForCart() {
 function syncCartCityFromAddress() {
   const address = document.getElementById('cart-address')?.value || '';
   const resolved = resolveDeliveryFromAddress(address);
-  const citySelect = document.getElementById('cart-city');
-  if (!citySelect || !resolved.known) return;
-  citySelect.value = resolved.city;
+  if (!resolved.known) return;
+  setCartCity(resolved.city);
 }
 
 function fulfillmentWhatsAppBlock(_mode, address = '') {
@@ -390,7 +406,7 @@ function fillCustomerFields() {
   if (cartAddress) cartAddress.value = c.address || '';
   if (cartCity) {
     const savedCity = c.city || resolveDeliveryFromAddress(c.address).city || '';
-    cartCity.value = savedCity;
+    setCartCity(savedCity);
   }
   if (cartPhone) {
     cartPhone.value = c.phone ? formatPhoneBR(c.phone) : '';
@@ -892,10 +908,7 @@ function applySettings() {
   document.querySelectorAll('[data-delivery-fee-label]').forEach((el) => {
     el.textContent = zones;
   });
-  const cartDeliveryNote = document.getElementById('cart-delivery-note');
-  if (cartDeliveryNote) {
-    cartDeliveryNote.innerHTML = `Entrega: <strong>${zones}</strong>`;
-  }
+  syncFulfillmentUI();
   const heroBg = document.getElementById('hero-bg');
   if (heroBg && s.banner) {
     heroBg.style.backgroundImage = `url('${imgSrc(s.banner)}')`;
@@ -2188,7 +2201,6 @@ function renderCartUI() {
     couponBox.hidden = lines === 0 || !hasActiveCoupons;
     couponBox.style.display = (lines === 0 || !hasActiveCoupons) ? 'none' : '';
   }
-  const deliveryNote = document.getElementById('cart-delivery-note');
   syncFulfillmentUI();
 
   if (discountEl) discountEl.textContent = `− ${Storage.formatCurrency(discount)}`;
@@ -2226,11 +2238,14 @@ function renderCartUI() {
     }
     if (finalRow) finalRow.hidden = true;
     if (deliveryRow) deliveryRow.hidden = true;
+    const zoneStatus = document.getElementById('cart-zone-status');
+    if (zoneStatus) zoneStatus.hidden = true;
+    const zonesWrap = document.getElementById('cart-zones');
+    if (zonesWrap) zonesWrap.hidden = true;
     if (couponBox) {
       couponBox.hidden = true;
       couponBox.style.display = 'none';
     }
-    if (deliveryNote) deliveryNote.hidden = true;
     return;
   }
 
@@ -2395,7 +2410,7 @@ async function checkoutCart() {
       error.textContent = 'Selecione a cidade ou informe Vila Velha, Vitória ou Cariacica no endereço.';
       error.hidden = false;
     }
-    document.getElementById('cart-city')?.focus();
+    document.getElementById('cart-zones')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
@@ -2920,16 +2935,20 @@ function initCart() {
       saveCustomer(readCustomerFromCart());
     });
   });
+  document.getElementById('cart-zones')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.cart-zone');
+    if (!btn) return;
+    const cityId = btn.dataset.city || '';
+    setCartCity(cityId);
+    saveCustomer(readCustomerFromCart());
+    scheduleRenderCartUI();
+  });
   document.getElementById('cart-address')?.addEventListener('input', () => {
     syncCartCityFromAddress();
     scheduleRenderCartUI();
   });
   document.getElementById('cart-address')?.addEventListener('change', () => {
     syncCartCityFromAddress();
-    saveCustomer(readCustomerFromCart());
-    scheduleRenderCartUI();
-  });
-  document.getElementById('cart-city')?.addEventListener('change', () => {
     saveCustomer(readCustomerFromCart());
     scheduleRenderCartUI();
   });

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <link rel="stylesheet" href="css/pipocando-brand.css?v=18">
 </head>
 <body>
@@ -318,9 +318,22 @@
         </div>
         <div class="cart-checkout" id="cart-checkout" hidden>
           <p class="cart-checkout__label cart-checkout__label--spaced">Entrega</p>
-          <p class="cart-drawer__delivery" id="cart-delivery-note" hidden>
-            Frete fixo por cidade — escolha abaixo ou informe no endereço.
-          </p>
+          <div class="cart-zones" id="cart-zones" role="radiogroup" aria-label="Cidade de entrega">
+            <button type="button" class="cart-zone" data-city="vila_velha" aria-pressed="false">
+              <span class="cart-zone__name">Vila Velha</span>
+              <span class="cart-zone__fee">R$ 5</span>
+            </button>
+            <button type="button" class="cart-zone" data-city="vitoria" aria-pressed="false">
+              <span class="cart-zone__name">Vitória</span>
+              <span class="cart-zone__fee">R$ 10</span>
+            </button>
+            <button type="button" class="cart-zone" data-city="cariacica" aria-pressed="false">
+              <span class="cart-zone__name">Cariacica</span>
+              <span class="cart-zone__fee">R$ 5</span>
+            </button>
+          </div>
+          <p class="cart-zone__status" id="cart-zone-status" hidden></p>
+          <input type="hidden" id="cart-city" value="">
           <p class="cart-checkout__label">Dados para finalizar</p>
           <div class="cart-checkout__fields">
             <label class="order-field">Nome *<input type="text" id="cart-nome" placeholder="Nome" autocomplete="given-name"></label>
@@ -328,20 +341,11 @@
           </div>
           <label class="order-field">WhatsApp *<input type="tel" id="cart-phone" placeholder="(00) 00000-0000" inputmode="numeric" autocomplete="tel" maxlength="15"></label>
           <div class="cart-address" id="cart-address-wrap" hidden>
-            <label class="order-field" for="cart-city">
-              Cidade *
-              <select id="cart-city" autocomplete="address-level2">
-                <option value="">Selecione sua cidade</option>
-                <option value="vila_velha">Vila Velha — R$ 5,00</option>
-                <option value="vitoria">Vitória — R$ 10,00</option>
-                <option value="cariacica">Cariacica — R$ 5,00</option>
-              </select>
-            </label>
             <label class="order-field" for="cart-address">
               Endereço de entrega *
               <textarea id="cart-address" rows="3" maxlength="280" placeholder="Rua, número, bairro…" autocomplete="street-address"></textarea>
             </label>
-            <p class="cart-address__hint" id="cart-address-hint">Escolha a cidade ou escreva no endereço (Vila Velha, Vitória ou Cariacica).</p>
+            <p class="cart-address__hint" id="cart-address-hint">Toque na sua cidade acima ou escreva no endereço.</p>
           </div>
           <div class="cart-payment cart-payment--checkout">
             <p class="cart-checkout__label">Forma de pagamento</p>
@@ -435,6 +439,6 @@
   <script src="js/storage.js?v=6"></script>
   <script src="js/delivery-zones.js?v=2"></script>
   <script src="js/cart-shared.js?v=6"></script>
-  <script src="script.js?v=22"></script>
+  <script src="script.js?v=23"></script>
 </body>
 </html>
