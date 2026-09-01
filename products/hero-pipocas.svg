@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff5f7"/>
+      <stop offset="50%" stop-color="#fce4ec"/>
+      <stop offset="100%" stop-color="#f8bbd0"/>
+    </linearGradient>
+    <linearGradient id="choco" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5c3420"/>
+      <stop offset="100%" stop-color="#3d2610"/>
+    </linearGradient>
+    <linearGradient id="cream" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fffaf0"/>
+      <stop offset="100%" stop-color="#f5e6c8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <ellipse cx="400" cy="920" rx="280" ry="40" fill="rgba(88,56,24,0.08)"/>
+  <path d="M260 780 L280 320 L520 320 L540 780 Z" fill="rgba(255,255,255,0.45)" stroke="rgba(255,255,255,0.8)" stroke-width="4"/>
+  <rect x="290" y="380" width="220" height="360" rx="12" fill="url(#choco)"/>
+  <rect x="290" y="380" width="110" height="360" rx="12 0 0 12" fill="url(#cream)"/>
+  <circle cx="350" cy="450" r="18" fill="#f0c878" opacity="0.9"/>
+  <circle cx="420" cy="480" r="14" fill="#e8b86d" opacity="0.85"/>
+  <circle cx="460" cy="520" r="16" fill="#f0c878" opacity="0.9"/>
+  <text x="400" y="180" text-anchor="middle" font-family="Georgia,serif" font-size="72" fill="#e85a76"><</text>
+  <text x="400" y="260" text-anchor="middle" font-family="Georgia,serif" font-size="42" font-weight="600" fill="#583818">Pipocas Trufadas</text>
+</svg>

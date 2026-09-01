@@ -1,0 +1,515 @@
+/* Pipocando VV — ajustes mínimos sobre o tema Aurora */
+
+.brand-logo__img {
+  display: block;
+  width: min(92vw, 420px);
+  height: auto;
+  max-height: clamp(4.5rem, 18vw, 7.5rem);
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(88, 56, 24, 0.12));
+}
+
+.brand-logo__img--footer {
+  width: min(72vw, 260px);
+  max-height: 4.5rem;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.18));
+}
+
+.brand-logo--hero .brand-logo__img {
+  margin-inline: auto;
+}
+
+.brand-logo__vv {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.55em;
+  color: var(--color-pink-deep);
+  letter-spacing: 0.04em;
+  vertical-align: baseline;
+}
+
+.brand-logo__vv[hidden] {
+  display: none !important;
+}
+
+.brand-logo--hero .brand-logo__name {
+  /* mantém Allura rosa da Aurora */
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12em;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.brand-logo--footer .brand-logo__name {
+  color: #fff;
+}
+
+.brand-logo--footer .brand-logo__vv {
+  color: var(--color-pink-soft);
+}
+
+/* Hero com imagem de fundo suave */
+.hero__bg-photo.has-banner {
+  background-size: cover;
+  background-position: center 35%;
+}
+
+/* Placeholder quando imagem não carrega */
+.product-card__img.is-placeholder,
+.contact__media.is-placeholder {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(252, 120, 144, 0.25), transparent 55%),
+    linear-gradient(145deg, #fff8fa, #fce4ec);
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+}
+
+.product-card__img.is-placeholder::after {
+  content: '🍿';
+  font-size: 3.5rem;
+  opacity: 0.85;
+}
+
+.contact__media.is-placeholder {
+  background: linear-gradient(145deg, #fff8fa, #fce4ec);
+  min-height: 280px;
+  border-radius: var(--radius-lg);
+}
+
+.contact__media.is-placeholder::after {
+  content: '🍿';
+  font-size: 4rem;
+}
+
+.gallery__item.is-placeholder {
+  background: linear-gradient(145deg, #fff1f4, #f9a8b8);
+  display: grid;
+  place-items: center;
+  font-size: 2.5rem;
+}
+
+/* Marquee — sans moderna (sem serifada) */
+.marquee__item {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: clamp(0.78rem, 1.7vw, 0.9rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-brown-deep);
+}
+
+/* Modal — sabores em linha única (sem bolha dentro de bolha) */
+.flavor-options--stacked .flavor-option-card {
+  display: block;
+}
+
+.flavor-options--stacked .flavor-option-card__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.flavor-options--stacked .flavor-option-card__name,
+.flavor-options--stacked .flavor-option-card__price {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.flavor-options--stacked .flavor-option-card__name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-brown-deep);
+  text-align: left;
+}
+
+.flavor-options--stacked .flavor-option-card__price {
+  flex-shrink: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-pink-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.flavor-options--stacked .flavor-option-card.is-active .flavor-option-card__body,
+.flavor-options--stacked .flavor-option-card input:checked + .flavor-option-card__body {
+  border-color: var(--color-pink);
+  background: rgba(252, 120, 144, 0.08);
+  box-shadow: 0 0 0 1px rgba(252, 120, 144, 0.12);
+  color: var(--color-brown-deep);
+}
+
+/* Seção pipocas — cards Aurora */
+.pipocas-showcase {
+  background:
+    linear-gradient(180deg, rgba(252, 120, 144, 0.08) 0%, transparent 55%);
+}
+
+.pipocas-showcase .products__grid {
+  margin-top: 0.5rem;
+}
+
+/* Lightbox pipocas — estilo Aurora */
+.pipoca-size-picker {
+  margin-bottom: 1rem;
+}
+
+.pipoca-size-picker__label,
+.pipoca-base-picker__label {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-pink-deep);
+}
+
+.pipoca-size-picker__chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.pipoca-size-picker__chip {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: center;
+  padding: 0.7rem 0.45rem;
+  border: 2px solid rgba(252, 120, 144, 0.28);
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, #fff, var(--color-pink-mist));
+  color: var(--color-brown-deep);
+  cursor: pointer;
+  transition:
+    border-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+
+.pipoca-size-picker__chip:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-pink);
+}
+
+.pipoca-size-picker__chip.is-active {
+  border-color: var(--color-pink-deep);
+  box-shadow: 0 0 0 1px rgba(232, 90, 118, 0.2);
+  background: linear-gradient(180deg, #fff8fa, #fce4ec);
+}
+
+.pipoca-size-picker__letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-pink);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.pipoca-size-picker__meta {
+  display: grid;
+  gap: 0.1rem;
+  text-align: center;
+}
+
+.pipoca-size-picker__vol {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-brown-soft);
+}
+
+.pipoca-size-picker__price {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-pink-deep);
+}
+
+.pipoca-base-picker {
+  margin-bottom: 1rem;
+}
+
+/* Base e coberturas — só texto (sem bolinhas) */
+.pipoca-pick-list--text .pipoca-pick-card {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pipoca-pick-card--text .pipoca-pick-card__label {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.pipoca-pick-card__dot,
+.pipoca-pick-card__thumb {
+  display: none !important;
+}
+
+.pipoca-pick-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pipoca-pick-list--bases {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pipoca-pick-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: #fff;
+  color: var(--color-brown-deep);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 180ms var(--ease-out),
+    background-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+
+.pipoca-pick-card:hover {
+  border-color: var(--color-pink);
+}
+
+.pipoca-pick-card.is-active {
+  border-color: var(--color-pink);
+  background: rgba(252, 120, 144, 0.08);
+  box-shadow: 0 0 0 1px rgba(252, 120, 144, 0.12);
+}
+
+.pipoca-pick-card__dot {
+  flex-shrink: 0;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: var(--tone, var(--color-pink-soft));
+  border: 1px solid rgba(93, 64, 55, 0.14);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.45);
+}
+
+.pipoca-pick-card__thumb {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pipoca-pick-card__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pipoca-pick-card__check {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  color: var(--color-pink);
+  opacity: 0;
+}
+
+.pipoca-pick-card.is-active .pipoca-pick-card__check {
+  opacity: 1;
+}
+
+@media (max-width: 420px) {
+  .pipoca-pick-list--bases {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* WhatsApp no contato — ícone verde */
+#contact-whatsapp-link i {
+  color: #1ebe57;
+  background: rgba(37, 211, 102, 0.14);
+}
+
+.pipoca-flavors__section-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-brown-deep);
+}
+
+.pipoca-flavors__rule,
+.pipoca-flavors__counter {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-brown-soft);
+}
+
+.pipoca-flavors__limit {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.65rem;
+  background: rgba(252, 120, 144, 0.12);
+  color: var(--color-pink-deep);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pipoca-flavors__units {
+  display: grid;
+  gap: 1rem;
+}
+
+.pipoca-flavors__units.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.pipoca-order-summary__inner {
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  background: rgba(252, 120, 144, 0.08);
+  border: 1px solid rgba(252, 120, 144, 0.18);
+}
+
+.pipoca-order-summary__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-brown-deep);
+}
+
+.pipoca-order-summary__base {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-pink-deep);
+}
+
+.pipoca-order-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--color-brown-soft);
+}
+
+.pipoca-order-summary__row--price strong {
+  color: var(--color-pink-deep);
+}
+
+.pipoca-selected-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-brown-deep);
+}
+
+.pipoca-selected-list__empty {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--color-brown-soft);
+}
+
+#contact-whatsapp-text {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* ========== Mobile ========== */
+@media (max-width: 820px) {
+  .pipoca-pick-card {
+    min-height: 2.85rem;
+    padding: 0.75rem 0.9rem;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .pipoca-pick-card--text .pipoca-pick-card__label {
+    font-size: 0.95rem;
+  }
+
+  .pipoca-size-picker__chip {
+    min-height: 4.5rem;
+    padding: 0.65rem 0.35rem;
+    touch-action: manipulation;
+  }
+
+  .pipoca-size-picker__chips {
+    gap: 0.45rem;
+  }
+
+  .pipoca-base-picker,
+  .pipoca-size-picker {
+    margin-bottom: 0.85rem;
+  }
+
+  .pipoca-flavors__units {
+    gap: 0.75rem;
+  }
+
+  .footer__channels a {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.35rem 0;
+  }
+
+  .footer__channels span {
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .contact__aside-links a {
+    min-height: 3rem;
+    touch-action: manipulation;
+  }
+
+  #contact-whatsapp-text {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .pipoca-pick-list--bases {
+    grid-template-columns: 1fr;
+  }
+
+  .pipoca-size-picker__chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .order-lightbox__panel--product .order-lightbox__media,
+  .order-lightbox__panel--product .order-lightbox__media img {
+    max-height: 9.5rem;
+    height: 9.5rem;
+  }
+
+  .order-lightbox__panel--product .order-lightbox__intro {
+    padding-right: 2.75rem;
+  }
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Login — Pipocando VV Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="admin.css?v=3">
+</head>
+<body class="login-page">
+
+  <div class="login">
+    <div class="login__visual">
+      <div class="login__overlay"></div>
+      <div class="login__visual-content">
+        <span style="font-size:3rem">🍿</span>
+        <h1>Pipocando VV</h1>
+        <p>Pipocas Trufadas</p>
+      </div>
+    </div>
+
+    <div class="login__form-wrapper">
+      <div class="login__form-container">
+        <div class="login__header">
+          <h2>Bem-vindo de volta</h2>
+          <p>Faça login para acessar o painel</p>
+        </div>
+
+        <form id="login-form" class="login__form">
+          <div class="form-group">
+            <label for="email"><i class="fas fa-envelope"></i> E-mail</label>
+            <input type="email" id="email" value="admin@pipocandovv.com.br" placeholder="admin@pipocandovv.com.br" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="password"><i class="fas fa-lock"></i> Senha</label>
+            <div class="input-password">
+              <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" class="toggle-password" aria-label="Mostrar senha"><i class="fas fa-eye"></i></button>
+            </div>
+          </div>
+          <div class="login__options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remember"> Lembrar-me
+            </label>
+            <a href="#" id="forgot-password" class="login__forgot">Recuperar senha</a>
+          </div>
+          <button type="submit" class="btn btn--primary btn--full" id="login-btn">
+            <i class="fas fa-sign-in-alt"></i> Entrar
+          </button>
+          <p class="login__error" id="login-error"></p>
+        </form>
+
+        <a href="../index.html" class="login__back"><i class="fas fa-arrow-left"></i> Voltar ao site</a>
+
+        <p class="login__private-note"><i class="fas fa-cloud"></i> Pedidos e financeiro sincronizam entre celulares após o login.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="recover-modal">
+    <div class="modal__overlay"></div>
+    <div class="modal__content">
+      <button class="modal__close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-key"></i> Recuperar Senha</h3>
+      <p>Digite seu e-mail para receber instruções de recuperação.</p>
+      <form id="recover-form">
+        <div class="form-group">
+          <label for="recover-email">E-mail</label>
+          <input type="email" id="recover-email" placeholder="seu@email.com" required>
+        </div>
+        <button type="submit" class="btn btn--primary btn--full">Enviar</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/default-data.js?v=2"></script>
+  <script src="../js/product-photos.js?v=2"></script>
+  <script src="../js/storage.js?v=11"></script>
+  <script>
+    if (sessionStorage.getItem('admin_logged') === 'true') {
+      window.location.href = 'index.html';
+    }
+
+    document.querySelector('.toggle-password').addEventListener('click', function () {
+      const input = document.getElementById('password');
+      const icon = this.querySelector('i');
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+    });
+
+    async function emergencyLocalLogin(email, password) {
+      const expectedEmail = 'admin@pipocandovv.com.br';
+      const expectedPass = (typeof PIPOCANDO_DEFAULT_DATA !== 'undefined' && PIPOCANDO_DEFAULT_DATA?.auth?.password)
+        ? PIPOCANDO_DEFAULT_DATA.auth.password
+        : 'pipoca123';
+      if (email !== expectedEmail || password !== expectedPass) return false;
+      try {
+        const res = await fetch('../catalog.json?t=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const catalog = await res.json();
+          if (catalog && Array.isArray(catalog.products)) {
+            localStorage.setItem('pipocando_public_catalog_v11', JSON.stringify({
+              ...catalog,
+              savedAt: Date.now(),
+              clients: [],
+              orders: [],
+              finance: [],
+              auth: { email: expectedEmail, password: expectedPass },
+            }));
+          }
+        }
+      } catch (_) { /* ignore */ }
+      sessionStorage.setItem('admin_password', password);
+      sessionStorage.setItem('admin_offline', '1');
+      return true;
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+
+      try {
+        let result = null;
+        if (typeof Storage !== 'undefined' && Storage.loginAsync) {
+          result = await Promise.race([
+            Storage.loginAsync(email, password),
+            new Promise((resolve) => setTimeout(() => resolve({ ok: false, reason: 'timeout' }), 7000)),
+          ]);
+        }
+        let ok = result === true || result?.ok === true;
+        if (!ok) {
+          ok = await emergencyLocalLogin(email, password);
+          if (ok) result = { ok: true, offline: true };
+        }
+        if (ok) {
+          sessionStorage.setItem('admin_logged', 'true');
+          sessionStorage.setItem('admin_email', email);
+          if (result?.offline) {
+            sessionStorage.setItem('admin_offline', '1');
+          } else {
+            sessionStorage.removeItem('admin_offline');
+          }
+          window.location.href = 'index.html';
+          return;
+        }
+        errorEl.textContent = 'E-mail ou senha incorretos.';
+        errorEl.style.display = 'block';
+      } catch (err) {
+        const ok = await emergencyLocalLogin(email, password);
+        if (ok) {
+          sessionStorage.setItem('admin_logged', 'true');
+          sessionStorage.setItem('admin_email', email);
+          sessionStorage.setItem('admin_offline', '1');
+          window.location.href = 'index.html';
+          return;
+        }
+        errorEl.textContent = 'Erro de conexão. Confira e-mail/senha e tente de novo.';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar';
+      }
+    });
+
+    const modal = document.getElementById('recover-modal');
+    document.getElementById('forgot-password').addEventListener('click', (e) => {
+      e.preventDefault();
+      modal.classList.add('active');
+    });
+    modal.querySelector('.modal__close').addEventListener('click', () => modal.classList.remove('active'));
+    modal.querySelector('.modal__overlay').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('recover-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      modal.classList.remove('active');
+      alert('Peça a senha ao responsável da loja.');
+    });
+  </script>
+</body>
+</html>

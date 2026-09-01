@@ -1,0 +1,4 @@
+api/config.local.php
+data/store.json
+.DS_Store
+Thumbs.db

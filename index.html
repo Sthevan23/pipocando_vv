@@ -1,0 +1,396 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Pipocando VV — Pipocas Trufadas artesanais. A pipoca que virou sobremesa! Peça pelo WhatsApp.">
+  <meta name="author" content="Pipocando VV">
+  <meta property="og:title" content="Pipocando VV — Pipocas Trufadas">
+  <meta property="og:description" content="A pipoca que virou sobremesa! Monte do seu jeito e peça pelo WhatsApp.">
+  <title>Pipocando VV — Pipocas Trufadas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="css/pipocando-brand.css?v=11">
+</head>
+<body>
+  <header class="header" id="header">
+    <div class="container header__inner">
+      <button class="header__toggle" id="nav-toggle" aria-label="Abrir menu" aria-expanded="false">
+        <span></span><span></span>
+      </button>
+      <nav class="header__nav" id="nav-menu" aria-label="Principal">
+        <a href="#pipocas-gourmet">Montar pipoca</a>
+        <a href="#produtos">Cardápio</a>
+        <a href="#galeria">Galeria</a>
+        <a href="#contato">Contato</a>
+      </nav>
+      <a class="header__cart header__cart--link" href="#" id="cart-open" aria-label="Abrir carrinho">
+        <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+        <span class="header__cart-label">Carrinho</span>
+        <span class="header__cart-meta">
+          <span class="header__cart-count" id="cart-count" hidden>0</span>
+          <span class="header__cart-total" id="header-cart-total" hidden></span>
+        </span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="topo" aria-label="Pipocando VV">
+      <div class="hero__bg-photo" id="hero-bg" aria-hidden="true"></div>
+      <div class="hero__bg-layer hero__bg-layer--near" aria-hidden="true"></div>
+      <div class="hero__veil" aria-hidden="true"></div>
+
+      <div class="container hero__content">
+        <span class="brand-logo brand-logo--hero hero__logo" id="brand-logo-hero" aria-label="Pipocando VV">
+          <img class="brand-logo__img" id="brand-logo-img" src="products/logo-pipocando-vv.png" alt="Pipocando VV — Pipocas Trufadas" width="420" height="120" decoding="async">
+        </span>
+
+        <h1 class="hero__title">
+          <span class="hero__title-line" id="hero-line-1">A pipoca que virou</span>
+          <span class="hero__title-line hero__title-line--dynamic">
+            <span id="hero-line-2-prefix">sobremesa mais </span>
+            <span class="hero__words" id="hero-words" aria-hidden="true">
+              <span class="is-active">doce</span>
+              <span>especial</span>
+              <span>irresistível</span>
+            </span>
+            <span class="sr-only" id="hero-sr-word">doce</span>
+          </span>
+        </h1>
+
+        <p class="hero__place">
+          <span id="hero-categories">Pipocas trufadas · artesanais</span>
+          · <span id="hero-place">Vila Velha, ES</span>
+        </p>
+
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#pipocas-gourmet">Montar minha pipoca</a>
+          <a class="btn btn--secondary" href="#produtos">Ver cardápio</a>
+          <a class="btn btn--ghost" id="hero-instagram" href="#" target="_blank" rel="noopener">Instagram</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="marquee" aria-hidden="true">
+      <div class="marquee__scroller">
+        <div class="marquee__track" id="marquee-track"></div>
+      </div>
+    </section>
+
+    <section class="section pipocas-showcase" id="pipocas-gourmet" aria-labelledby="pipocas-title">
+      <div class="container">
+        <div class="products__intro is-visible">
+          <p class="section__eyebrow">Pipocas trufadas · artesanais</p>
+          <h2 class="section__title" id="pipocas-title">Monte sua <em>pipoca</em></h2>
+          <p class="section__lead">Toque no tamanho, escolha base e coberturas e adicione ao carrinho. Pote <strong>P</strong> = 1 cobertura · <strong>M</strong> e <strong>G</strong> = 2 coberturas no pote dividido.</p>
+        </div>
+        <div class="products__grid" id="pipocas-grid"></div>
+      </div>
+    </section>
+
+    <section class="section products" id="produtos">
+      <div class="container">
+        <div class="products__intro is-visible">
+          <p class="section__eyebrow">Cardápio</p>
+          <h2 class="section__title">Nossos <em>produtos</em></h2>
+          <p class="section__lead">Toque em Adicionar, escolha o sabor e finalize no carrinho. O pedido entra no sistema e você confirma no WhatsApp.</p>
+        </div>
+        <div class="products__filter is-visible" id="category-filter"></div>
+        <p class="products__notice" id="products-notice" hidden></p>
+        <div class="products__grid is-visible" id="products-grid"></div>
+      </div>
+    </section>
+
+    <section class="section gallery" id="galeria">
+      <div class="container">
+        <div class="gallery__intro is-visible">
+          <p class="section__eyebrow">Inspiração</p>
+          <h2 class="section__title">Nossa <em>galeria</em></h2>
+          <p class="section__lead">#pipocandovv — compartilhe o seu momento doce.</p>
+        </div>
+        <div class="gallery__grid" id="gallery-grid"></div>
+      </div>
+    </section>
+
+    <section class="section order" id="encomendas">
+      <div class="container order__panel is-visible">
+        <div class="order__copy">
+          <p class="section__eyebrow">Encomendas</p>
+          <h2 class="section__title">Pedidos simples, atendimento próximo</h2>
+          <p class="section__lead">Monte pelo site, finalize no carrinho e confirme no WhatsApp com a Pipocando VV.</p>
+          <div class="order__cta">
+            <a class="btn btn--secondary" href="#pipocas-gourmet">Montar pipoca</a>
+            <a class="btn btn--ghost" id="order-instagram" href="#" target="_blank" rel="noopener">Ver Instagram</a>
+          </div>
+        </div>
+        <ol class="order__steps">
+          <li>
+            <span>01</span>
+            <div>
+              <h3>Escolha no cardápio</h3>
+              <p>Toque no produto, escolha o sabor e adicione ao carrinho.</p>
+            </div>
+          </li>
+          <li>
+            <span>02</span>
+            <div>
+              <h3>Finalize o pedido</h3>
+              <p>Preencha seus dados no carrinho. O pedido fica registrado no painel da Pipocando VV.</p>
+            </div>
+          </li>
+          <li>
+            <span>03</span>
+            <div>
+              <h3>Entrega</h3>
+              <p id="order-pickup">Entrega em Vila Velha e região — consultar bairros e taxa no WhatsApp.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section contact" id="contato">
+      <div class="container contact__grid is-visible">
+        <div class="contact__copy">
+          <p class="section__eyebrow">Contato</p>
+          <h2 class="section__title">Seu pedido começa <em>aqui</em></h2>
+          <p class="section__lead">Conte o que você quer — a gente monta a mensagem e segue no WhatsApp.</p>
+
+          <form class="contact__form" id="contact-form">
+            <label>Nome<input name="name" required minlength="2" placeholder="Seu nome" autocomplete="name"></label>
+            <label>Telefone / WhatsApp<input name="phone" id="contact-phone" type="tel" required minlength="14" maxlength="15" placeholder="(00) 00000-0000" inputmode="numeric" autocomplete="tel"></label>
+            <label>Mensagem<textarea name="message" required minlength="5" rows="4" placeholder="Sabor, quantidade e data…"></textarea></label>
+            <div class="contact__actions">
+              <button class="btn btn--primary" type="submit">Enviar mensagem</button>
+              <a class="btn btn--ghost" id="contact-whatsapp-cta" href="#" target="_blank" rel="noopener">Só abrir WhatsApp</a>
+            </div>
+            <p class="contact__feedback contact__feedback--ok" id="contact-ok" hidden>Mensagem pronta. Vamos te redirecionar ao WhatsApp.</p>
+          </form>
+        </div>
+
+        <aside class="contact__aside">
+          <figure class="contact__media" id="contact-media-wrap">
+            <img src="products/pipoca-m.jpg" alt="Pipocas trufadas" id="contact-image">
+          </figure>
+          <div class="contact__aside-links">
+            <a id="contact-whatsapp-link" href="#" target="_blank" rel="noopener">
+              <i class="fab fa-whatsapp" aria-hidden="true"></i>
+              <span>
+                <small>WhatsApp</small>
+                <strong id="contact-whatsapp-text">(27) 99963-4430</strong>
+              </span>
+            </a>
+            <a id="contact-address" href="#" target="_blank" rel="noopener">
+              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+              <span>
+                <small>Local</small>
+                <strong id="contact-address-text">Vila Velha, ES — pedidos pelo WhatsApp</strong>
+              </span>
+            </a>
+            <div class="contact__delivery" aria-label="Taxa de entrega">
+              <i class="fa-solid fa-motorcycle" aria-hidden="true"></i>
+              <span>
+                <small>Entrega</small>
+                <strong id="contact-delivery-fee">R$ 7,00 — região central</strong>
+                <em id="contact-delivery-note">Bairros mais afastados: consultar no WhatsApp</em>
+              </span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__top">
+      <div class="footer__brand">
+        <a href="#topo" class="brand-logo brand-logo--footer" id="brand-logo-footer" aria-label="Pipocando VV">
+          <img class="brand-logo__img brand-logo__img--footer" id="footer-brand-logo-img" src="products/logo-pipocando-vv.png" alt="Pipocando VV — Pipocas Trufadas" width="260" height="74" decoding="async">
+        </a>
+        <p class="footer__tagline" id="footer-tagline">A pipoca que virou sobremesa!</p>
+      </div>
+
+      <nav class="footer__nav" aria-label="Rodapé">
+        <a href="#pipocas-gourmet">Montar pipoca</a>
+        <a href="#produtos">Cardápio</a>
+        <a href="#contato">Contato</a>
+      </nav>
+
+      <div class="footer__channels">
+        <a id="footer-whatsapp" href="#" target="_blank" rel="noopener">
+          <i class="fab fa-whatsapp" aria-hidden="true"></i>
+          <span>(27) 99963-4430</span>
+        </a>
+        <a id="footer-instagram" href="https://www.instagram.com/pipocandovv" target="_blank" rel="noopener">
+          <i class="fab fa-instagram" aria-hidden="true"></i>
+          <span>@pipocandovv</span>
+        </a>
+        <a id="footer-place" href="#" target="_blank" rel="noopener">
+          <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+          <span>Vila Velha, ES</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <div class="container footer__bottom-inner">
+        <p>© <span id="footer-year"></span> Pipocando VV — Pipocas Trufadas</p>
+        <p id="footer-delivery">Pedidos pelo WhatsApp · Entrega R$ 7 (centro) · Bairros afastados consultar</p>
+      </div>
+    </div>
+  </footer>
+
+  <a class="whatsapp-float" id="whatsapp-float" href="#" target="_blank" rel="noopener" aria-label="Dúvidas no WhatsApp">
+    <i class="fab fa-whatsapp"></i>
+  </a>
+
+  <div class="cart-drawer" id="cart-drawer" hidden>
+    <button type="button" class="cart-drawer__backdrop" id="cart-close-backdrop" aria-label="Fechar carrinho"></button>
+    <aside class="cart-drawer__panel" aria-label="Carrinho">
+      <header class="cart-drawer__head">
+        <div>
+          <p class="cart-drawer__eyebrow">Seu pedido</p>
+          <h2 class="cart-drawer__title">Carrinho</h2>
+          <p class="cart-drawer__subtitle" id="cart-subtitle">Nenhum item ainda</p>
+        </div>
+        <button type="button" class="cart-drawer__close" id="cart-close" aria-label="Fechar">×</button>
+      </header>
+      <div class="cart-drawer__body" id="cart-items"></div>
+      <footer class="cart-drawer__foot">
+        <div class="cart-drawer__total" id="cart-total-row" hidden>
+          <span>Subtotal</span>
+          <strong id="cart-subtotal">R$ 0,00</strong>
+        </div>
+        <div class="cart-drawer__discount" id="cart-discount-row" hidden>
+          <span>Desconto <em id="cart-coupon-label"></em></span>
+          <strong id="cart-discount">− R$ 0,00</strong>
+        </div>
+        <div class="cart-drawer__total cart-drawer__total--final" id="cart-final-row" hidden>
+          <span>Total</span>
+          <strong id="cart-total">R$ 0,00</strong>
+        </div>
+        <div class="cart-coupon" id="cart-coupon" hidden>
+          <label class="order-field" for="cart-coupon-input">Cupom de desconto</label>
+          <div class="cart-coupon__row">
+            <input type="text" id="cart-coupon-input" placeholder="Ex: AURORA10" autocomplete="off" maxlength="40">
+            <button type="button" class="btn btn--ghost" id="cart-coupon-apply">Aplicar</button>
+          </div>
+          <p class="cart-coupon__msg" id="cart-coupon-msg" hidden></p>
+          <button type="button" class="cart-coupon__remove" id="cart-coupon-remove" hidden>Remover cupom</button>
+        </div>
+        <div class="cart-checkout" id="cart-checkout" hidden>
+          <p class="cart-checkout__label cart-checkout__label--spaced">Entrega</p>
+          <p class="cart-drawer__delivery" id="cart-delivery-note" hidden>
+            Entrega: <strong>R$ 7,00</strong> região central · bairros mais afastados, consultar no WhatsApp
+          </p>
+          <p class="cart-checkout__label">Dados para finalizar</p>
+          <div class="cart-checkout__fields">
+            <label class="order-field">Nome *<input type="text" id="cart-nome" placeholder="Nome" autocomplete="given-name"></label>
+            <label class="order-field">Sobrenome *<input type="text" id="cart-sobrenome" placeholder="Sobrenome" autocomplete="family-name"></label>
+          </div>
+          <label class="order-field">WhatsApp *<input type="tel" id="cart-phone" placeholder="(00) 00000-0000" inputmode="numeric" autocomplete="tel" maxlength="15"></label>
+          <div class="cart-address" id="cart-address-wrap" hidden>
+            <label class="order-field" for="cart-address">
+              Endereço de entrega *
+              <textarea id="cart-address" rows="3" maxlength="280" placeholder="Rua, número, bairro, referência…" autocomplete="street-address"></textarea>
+            </label>
+            <p class="cart-address__hint">Informe rua, número e bairro para a entrega.</p>
+          </div>
+          <div class="cart-payment cart-payment--checkout">
+            <p class="cart-checkout__label">Forma de pagamento</p>
+            <div class="payment payment--stacked" role="radiogroup" aria-label="Forma de pagamento">
+              <label class="payment__option">
+                <input type="radio" name="cart-payment" value="pix" id="cart-payment-pix" checked>
+                <span>
+                  <strong>Pix</strong>
+                  <small>Pagamento instantâneo</small>
+                </span>
+              </label>
+              <label class="payment__option">
+                <input type="radio" name="cart-payment" value="dinheiro" id="cart-payment-dinheiro">
+                <span>
+                  <strong>Dinheiro</strong>
+                  <small>Na entrega</small>
+                </span>
+              </label>
+              <label class="payment__option">
+                <input type="radio" name="cart-payment" value="cartao" id="cart-payment-cartao">
+                <span>
+                  <strong>Cartão</strong>
+                  <small>Link de crédito · repasse da taxa</small>
+                </span>
+              </label>
+            </div>
+            <p class="payment__note" id="cart-payment-card-note" hidden>
+              No cartão de crédito, a taxa da operadora é repassada ao cliente.
+            </p>
+          </div>
+          <p class="cart-drawer__error" id="cart-error" hidden></p>
+          <button type="button" class="btn btn--secondary" id="cart-checkout-btn">Finalizar pedido</button>
+        </div>
+        <div class="cart-drawer__actions">
+          <button type="button" class="btn btn--ghost" id="cart-continue">Continuar comprando</button>
+          <a class="btn btn--ghost" id="cart-go-menu" href="#produtos" hidden>Ver cardápio</a>
+        </div>
+      </footer>
+    </aside>
+  </div>
+
+  <div class="order-lightbox" id="order-lightbox" hidden>
+    <button type="button" class="order-lightbox__backdrop" id="lightbox-backdrop" aria-label="Fechar"></button>
+    <div class="order-lightbox__panel order-lightbox__panel--product">
+      <div class="order-lightbox__handle" aria-hidden="true"></div>
+      <button type="button" class="order-lightbox__close" id="lightbox-close" aria-label="Fechar">×</button>
+      <button type="button" class="order-lightbox__media" id="lightbox-media" aria-label="Ver opções do produto">
+        <img id="lightbox-img" src="" alt="">
+      </button>
+      <div class="order-lightbox__intro">
+        <span class="order-lightbox__category" id="lightbox-category"></span>
+        <h3 class="order-lightbox__title" id="lightbox-title"></h3>
+        <p class="order-lightbox__price" id="lightbox-unit-price"></p>
+      </div>
+      <div class="order-lightbox__info">
+        <div class="order-lightbox__scroll" id="lightbox-scroll">
+          <p class="order-lightbox__desc" id="lightbox-desc"></p>
+          <div id="lightbox-flavors" hidden></div>
+          <label class="order-field order-field--notes">
+            Observações
+            <textarea id="lightbox-notes" rows="2" maxlength="240" placeholder="Ex: Pouco doce, sem cobertura, bem gelado…"></textarea>
+          </label>
+        </div>
+        <div class="order-lightbox__actions">
+          <p class="order-lightbox__error" id="order-error" hidden></p>
+          <div class="order-lightbox__footer-tools">
+            <div class="order-qty-row">
+              <span class="order-qty-row__label">Quantidade</span>
+              <div class="qty-stepper" id="lightbox-qty-stepper">
+                <button type="button" class="qty-stepper__btn" id="lightbox-qty-minus" aria-label="Diminuir">−</button>
+                <span class="qty-stepper__value" id="lightbox-qty-value">1</span>
+                <button type="button" class="qty-stepper__btn qty-stepper__btn--plus" id="lightbox-qty-plus" aria-label="Aumentar">+</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn--secondary order-lightbox__add" id="lightbox-add-cart">
+            <span class="order-lightbox__add-label">Adicionar ao carrinho</span>
+            <strong class="order-lightbox__add-total" id="lightbox-line-total"></strong>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cart-feedback" id="cart-feedback" hidden aria-live="polite"></div>
+
+  <script src="js/brand-config.js?v=1"></script>
+  <script src="js/pipoca-config.js?v=3"></script>
+  <script src="js/default-data.js?v=4"></script>
+  <script src="js/product-photos.js?v=3"></script>
+  <script src="js/storage.js?v=4"></script>
+  <script src="js/cart-shared.js?v=3"></script>
+  <script src="script.js?v=12"></script>
+</body>
+</html>
