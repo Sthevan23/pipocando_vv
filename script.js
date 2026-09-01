@@ -1059,15 +1059,20 @@ function renderProducts() {
   if (notice) {
     const messages = [];
     const hasOff = (catId) => products.some((p) => p.categoryId === catId && p.available === false);
+    const showLembrancinhas = activeFilter === 'cat-lembrancinhas'
+      || (activeFilter === 'all' && products.some((p) => p.categoryId === 'cat-lembrancinhas'));
+    if (showLembrancinhas) {
+      messages.push('Lembrancinhas sob encomenda — prazo mínimo de 5 dias.');
+    }
     if ((activeFilter === 'cat-salgados' || activeFilter === 'all') && hasOff('cat-salgados')) {
-      messages.push('Salgados temporariamente indisponíveis.');
+      messages.push('Salgados temporariamente indisponíveis. Voltam em breve.');
     }
     if ((activeFilter === 'cat-copos' || activeFilter === 'all') && hasOff('cat-copos')) {
-      messages.push('Copo da Felicidade indisponível hoje.');
+      messages.push('Copo da Felicidade indisponível hoje. Voltam em breve.');
     }
     if (messages.length) {
       notice.hidden = false;
-      notice.textContent = `${messages.join(' ')} Voltam em breve.`;
+      notice.textContent = messages.join(' ');
     } else {
       notice.hidden = true;
       notice.textContent = '';
@@ -1916,13 +1921,19 @@ function cartItemsSignature() {
   return cartItems.map((item) => `${item.key}:${item.qty}:${item.price}`).join('|');
 }
 
+function escCartKey(key) {
+  const value = String(key || '');
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value);
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function patchCartItemRows(itemsEl) {
   if (!itemsEl || !cartItems.length) return false;
   const rows = itemsEl.querySelectorAll('.cart-item');
   if (rows.length !== cartItems.length) return false;
 
   for (const item of cartItems) {
-    const row = itemsEl.querySelector(`.cart-item[data-key="${CSS.escape(item.key)}"]`);
+    const row = itemsEl.querySelector(`.cart-item[data-key="${escCartKey(item.key)}"]`);
     if (!row) return false;
     const qtyEl = row.querySelector('.cart-qty__value');
     if (qtyEl) qtyEl.textContent = String(item.qty);
@@ -2729,39 +2740,36 @@ function initParallax() {
   }, { passive: true });
 }
 
-async function boot() {
-  Storage.init();
-  let status = false;
-  try {
-    status = await Storage.initCloud({ full: false });
-  } catch { /* ignore */ }
-
-  const hasProducts = (Storage.getProducts?.() || []).length > 0;
-  if (status !== true && !hasProducts) {
-    console.warn('[Pipocando] Usando catálogo local.');
-  }
-
+function mountSite({ withInit = false } = {}) {
   applySettings();
   renderMarquee();
   renderPipocasSection();
   renderFilters();
   renderProducts();
   renderGallery();
+  if (!withInit) return;
   initHeader();
   initLightbox();
   initCart();
   initContactForm();
   initHeroWords();
   initParallax();
+}
+
+async function boot() {
+  Storage.init();
+  try {
+    mountSite({ withInit: true });
+  } catch (err) {
+    console.error('[Pipocando] Erro ao montar página:', err);
+  }
 
   window.addEventListener('storage-updated', () => {
-    applySettings();
-    renderMarquee();
-    initHeroWords();
-    renderPipocasSection();
-    renderFilters();
-    renderProducts();
-    renderGallery();
+    try {
+      mountSite();
+    } catch (err) {
+      console.error('[Pipocando] Erro ao atualizar catálogo:', err);
+    }
   });
 
   document.querySelectorAll('[data-filter]').forEach((link) => {
@@ -2775,6 +2783,18 @@ async function boot() {
       document.getElementById('produtos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  try {
+    const status = await Storage.initCloud({ full: false });
+    if (status) {
+      mountSite();
+    } else {
+      const hasProducts = (Storage.getProducts?.() || []).length > 0;
+      if (!hasProducts) console.warn('[Pipocando] Catálogo local em uso.');
+    }
+  } catch (err) {
+    console.warn('[Pipocando] Falha ao sincronizar catálogo:', err);
+  }
 }
 
 boot();

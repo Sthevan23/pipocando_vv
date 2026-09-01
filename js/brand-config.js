@@ -10,7 +10,7 @@ window.BRAND_DEFAULTS = {
   heroLine2Prefix: 'sobremesa mais',
   heroWords: ['doce', 'especial', 'irresistível'],
   heroCategories: 'Pipocas trufadas · artesanais · lembrancinhas',
-  placeShort: 'Vila Velha, ES',
+  placeShort: 'Cobilandia, Vila Velha',
   whatsappOrderMsg: 'Olá! Quero pedir pipocas gourmet 🍿',
   whatsappFloatMsg: 'Olá! Tenho uma dúvida 🍿',
   marqueeItems: [

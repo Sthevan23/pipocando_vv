@@ -12,7 +12,7 @@
     "heroLine2Prefix": "sobremesa mais",
     "heroWords": ["doce", "especial", "irresistível"],
     "heroCategories": "Pipocas trufadas · artesanais · lembrancinhas",
-    "placeShort": "Vila Velha, ES",
+    "placeShort": "Cobilandia, Vila Velha",
     "whatsappOrderMsg": "Olá! Quero pedir pipocas gourmet 🍿",
     "whatsappFloatMsg": "Olá! Tenho uma dúvida 🍿",
     "logo": "",
@@ -22,7 +22,7 @@
     "instagramUser": "@pipocandovv",
     "facebook": "",
     "email": "contato@pipocandovv.com.br",
-    "address": "Vila Velha, ES — pedidos pelo WhatsApp",
+    "address": "Rua Burarama, 168, Cobilandia — Vila Velha, ES",
     "hours": "Seg a Sáb · pedidos pelo WhatsApp",
     "deliveryFee": 8,
     "deliveryNote": "Consultar bairros e taxa no WhatsApp"
@@ -124,7 +124,7 @@
     {
       "id": "p-lembrancinha-vermelha",
       "name": "Lembrancinha Laço Vermelho",
-      "description": "Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço vermelho — ideal para festas e maternidades.",
+      "description": "Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço vermelho — ideal para festas e maternidades. Sob encomenda — prazo mínimo de 5 dias.",
       "price": 130,
       "categoryId": "cat-lembrancinhas",
       "image": "products/lembrancinha-vermelha.jpg",
@@ -143,7 +143,7 @@
     {
       "id": "p-lembrancinha-azul",
       "name": "Lembrancinha Laço Azul",
-      "description": "Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço azul — perfeito para chá de bebê e festas.",
+      "description": "Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço azul — perfeito para chá de bebê e festas. Sob encomenda — prazo mínimo de 5 dias.",
       "price": 110,
       "categoryId": "cat-lembrancinhas",
       "image": "products/lembrancinha-azul.jpg",
@@ -172,7 +172,7 @@
     },
     {
       "q": "Como funcionam as lembrancinhas?",
-      "a": "Vendemos em pacotes de 20 unidades de 15 g. O valor já inclui saquinho, adesivo personalizado e laço (vermelho ou azul). Consulte prazos e personalização no WhatsApp."
+      "a": "Vendemos em pacotes de 20 unidades de 15 g. O valor já inclui saquinho, adesivo personalizado e laço (vermelho ou azul). Sob encomenda — prazo mínimo de 5 dias. Consulte personalização no WhatsApp."
     }
   ],
   "gallery": [

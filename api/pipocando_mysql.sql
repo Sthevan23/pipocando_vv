@@ -254,7 +254,7 @@ INSERT INTO `settings` (
   '@pipocandovv',
   '',
   'contato@pipocandovv.com.br',
-  'Vila Velha, ES — pedidos pelo WhatsApp',
+  'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
   'Seg a Sáb · pedidos pelo WhatsApp',
   '', '',
   '',
@@ -268,7 +268,7 @@ INSERT INTO `settings` (
     'heroLine2Prefix', 'sobremesa mais',
     'heroWords', JSON_ARRAY('doce', 'especial', 'irresistível'),
     'heroCategories', 'Pipocas trufadas · artesanais · lembrancinhas',
-    'placeShort', 'Vila Velha, ES',
+    'placeShort', 'Cobilandia, Vila Velha',
     'whatsappOrderMsg', 'Olá! Quero pedir pipocas gourmet 🍿',
     'whatsappFloatMsg', 'Olá! Tenho uma dúvida 🍿'
   ),
@@ -319,14 +319,14 @@ INSERT INTO `products` (
 ),
 (
   'p-lembrancinha-vermelha', 'Lembrancinha Laço Vermelho',
-  'Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço vermelho.',
+  'Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço vermelho. Sob encomenda — prazo mínimo de 5 dias.',
   130.00, 0, 'cat-lembrancinhas', 'products/lembrancinha-vermelha.jpg',
   1, 'lembrancinha-laco-vermelho', '20×15g', 0, NULL, '',
   0, 1, 1, 4
 ),
 (
   'p-lembrancinha-azul', 'Lembrancinha Laço Azul',
-  'Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço azul.',
+  'Pacote com 20 unidades de 15 g cada. Inclui saquinho, adesivo personalizado e laço azul. Sob encomenda — prazo mínimo de 5 dias.',
   110.00, 0, 'cat-lembrancinhas', 'products/lembrancinha-azul.jpg',
   1, 'lembrancinha-laco-azul', '20×15g', 0, NULL, '',
   0, 1, 1, 5
@@ -378,7 +378,7 @@ INSERT INTO `faq` (`id`, `question`, `answer`, `sort_order`) VALUES
 (
   'faq-3',
   'Como funcionam as lembrancinhas?',
-  'Vendemos em pacotes de 20 unidades de 15 g. O valor já inclui saquinho, adesivo personalizado e laço (vermelho ou azul). Consulte prazos e personalização no WhatsApp.',
+  'Vendemos em pacotes de 20 unidades de 15 g. O valor já inclui saquinho, adesivo personalizado e laço (vermelho ou azul). Sob encomenda — prazo mínimo de 5 dias. Consulte personalização no WhatsApp.',
   2
 );
 

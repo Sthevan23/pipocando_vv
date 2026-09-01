@@ -24,7 +24,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     heroCategories: 'Pipocas trufadas · artesanais · lembrancinhas',
 
-    placeShort: 'Vila Velha, ES',
+    placeShort: 'Cobilandia, Vila Velha',
 
     whatsappOrderMsg: 'Olá! Quero pedir pipocas gourmet 🍿',
 
@@ -44,7 +44,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     email: 'contato@pipocandovv.com.br',
 
-    address: 'Vila Velha, ES — pedidos pelo WhatsApp',
+    address: 'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
 
     hours: 'Seg a Sáb · pedidos pelo WhatsApp',
 
@@ -82,9 +82,9 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     { id: 'p-combo-dupla', name: 'Combo Dupla VV', description: '2 potes M com sabores à sua escolha.', price: 48, categoryId: 'cat-combos', image: 'products/combo-dupla.jpg', featured: true, slug: 'combo-dupla-vv', size: '2×500ml', flavorSlots: 2, flavors: ['Ninho', 'Choconuts', 'Cookie', 'Nutella', 'Bueno'], promoActive: true, promoPrice: 45, promoLabel: 'Promoção', active: true, available: true },
 
-    { id: 'p-lembrancinha-vermelha', name: 'Lembrancinha Laço Vermelho', description: 'Pacote com 20 unidades de 15 g. Inclui saquinho, adesivo e laço vermelho.', price: 130, categoryId: 'cat-lembrancinhas', image: 'products/lembrancinha-vermelha.jpg', featured: true, slug: 'lembrancinha-laco-vermelho', size: '20×15g', flavorSlots: 0, flavors: [], bestSeller: false, active: true, available: true },
+    { id: 'p-lembrancinha-vermelha', name: 'Lembrancinha Laço Vermelho', description: 'Pacote com 20 unidades de 15 g. Inclui saquinho, adesivo e laço vermelho. Sob encomenda — prazo mínimo de 5 dias.', price: 130, categoryId: 'cat-lembrancinhas', image: 'products/lembrancinha-vermelha.jpg', featured: true, slug: 'lembrancinha-laco-vermelho', size: '20×15g', flavorSlots: 0, flavors: [], bestSeller: false, active: true, available: true },
 
-    { id: 'p-lembrancinha-azul', name: 'Lembrancinha Laço Azul', description: 'Pacote com 20 unidades de 15 g. Inclui saquinho, adesivo e laço azul.', price: 110, categoryId: 'cat-lembrancinhas', image: 'products/lembrancinha-azul.jpg', featured: true, slug: 'lembrancinha-laco-azul', size: '20×15g', flavorSlots: 0, flavors: [], bestSeller: false, active: true, available: true },
+    { id: 'p-lembrancinha-azul', name: 'Lembrancinha Laço Azul', description: 'Pacote com 20 unidades de 15 g. Inclui saquinho, adesivo e laço azul. Sob encomenda — prazo mínimo de 5 dias.', price: 110, categoryId: 'cat-lembrancinhas', image: 'products/lembrancinha-azul.jpg', featured: true, slug: 'lembrancinha-laco-azul', size: '20×15g', flavorSlots: 0, flavors: [], bestSeller: false, active: true, available: true },
 
   ],
 

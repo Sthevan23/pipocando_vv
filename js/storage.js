@@ -427,38 +427,42 @@ const Storage = (() => {
   }
 
   async function pullStaticCatalog({ maxAgeMs = null } = {}) {
-    // catalog.live.json = publicado pelo admin/MySQL; catalog.json = pode vir velho do Git
+    const stamp = Date.now();
     const urls = [
-      'catalog.live.json?t=' + Date.now(),
-      '/catalog.live.json?t=' + Date.now(),
-      'catalog.json?t=' + Date.now(),
-      '/catalog.json?t=' + Date.now(),
-      'api/catalog.json?t=' + Date.now(),
+      'catalog.live.json?t=' + stamp,
+      'catalog.json?t=' + stamp,
+      '/catalog.live.json?t=' + stamp,
+      '/catalog.json?t=' + stamp,
     ];
-    let best = null;
-    for (const url of urls) {
+    const tryUrl = async (url) => {
       try {
-        const res = await fetchWithTimeout(url, {}, 8000);
-        if (!res.ok) continue;
+        const res = await fetchWithTimeout(url, {}, 3500);
+        if (!res.ok) return null;
         const remote = await res.json();
         if (!remote || !remote.settings || !Array.isArray(remote.products) || !remote.products.length) {
-          continue;
+          return null;
         }
         if (maxAgeMs != null) {
           const gen = Date.parse(remote.generatedAt || '');
-          if (!Number.isFinite(gen) || (Date.now() - gen) > maxAgeMs) {
-            continue;
-          }
+          if (!Number.isFinite(gen) || (Date.now() - gen) > maxAgeMs) return null;
         }
-        const ver = Number(remote.version) || 0;
-        const gen = Date.parse(remote.generatedAt || '') || 0;
-        if (!best || ver > best.ver || (ver === best.ver && gen > best.gen)) {
-          best = { remote, ver, gen };
-        }
+        return {
+          remote,
+          ver: Number(remote.version) || 0,
+          gen: Date.parse(remote.generatedAt || '') || 0,
+        };
       } catch {
-        // tenta próxima url
+        return null;
       }
-    }
+    };
+    const results = await Promise.all(urls.map((url) => tryUrl(url)));
+    let best = null;
+    results.forEach((hit) => {
+      if (!hit) return;
+      if (!best || hit.ver > best.ver || (hit.ver === best.ver && hit.gen > best.gen)) {
+        best = hit;
+      }
+    });
     if (!best) return false;
     const remote = best.remote;
     const merged = {
