@@ -829,6 +829,7 @@ function applySettings() {
     ['hero-instagram', ig],
     ['order-instagram', ig],
     ['footer-instagram', ig],
+    ['contact-instagram-link', ig],
   ].forEach(([id, href]) => {
     const el = document.getElementById(id);
     if (el) el.href = href;
@@ -842,6 +843,9 @@ function applySettings() {
   }
   const contactWhatsappText = document.getElementById('contact-whatsapp-text');
   if (contactWhatsappText) contactWhatsappText.textContent = phoneDisplay;
+
+  const contactIgText = document.getElementById('contact-instagram-text');
+  if (contactIgText) contactIgText.textContent = igUser;
 
   const footerIg = document.getElementById('footer-instagram');
   if (footerIg) {

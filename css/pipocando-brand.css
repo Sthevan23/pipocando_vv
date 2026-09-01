@@ -399,6 +399,11 @@
   background: rgba(37, 211, 102, 0.14);
 }
 
+#contact-instagram-link i {
+  color: #e1306c;
+  background: rgba(225, 48, 108, 0.12);
+}
+
 .pipoca-flavors__section-title {
   margin: 0 0 0.25rem;
   font-size: 0.88rem;

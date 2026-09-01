@@ -165,7 +165,7 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 
 .login__visual {
   flex: 1;
-  background: url('../products/pipoca-g.jpg') center 42% / cover no-repeat;
+  background: url('../products/galeria-4.jpg') center 40% / cover no-repeat;
   position: relative;
   display: flex;
   align-items: center;
@@ -175,7 +175,7 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 .login__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(35, 12, 28, 0.82), rgba(233, 30, 140, 0.55));
+  background: linear-gradient(135deg, rgba(35, 12, 28, 0.78), rgba(233, 30, 140, 0.48));
 }
 
 .login__visual-content {
@@ -183,23 +183,35 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   z-index: 2;
   text-align: center;
   color: var(--branco);
+  padding: 1.5rem;
 }
 
-.login__visual-content i {
-  font-size: 4rem;
-  margin-bottom: 16px;
-  color: var(--rosa-claro);
+.login__visual-eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.88;
 }
 
 .login__visual-content h1 {
   font-family: var(--font-title);
-  font-size: 2.5rem;
-  margin-bottom: 8px;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 0 0 0.5rem;
+  line-height: 1.05;
+}
+
+.login__visual-content h1 span {
+  font-family: var(--font-body);
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .login__visual-content p {
-  font-size: 1.1rem;
-  opacity: 0.9;
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.92;
 }
 
 .login__form-wrapper {
@@ -2018,8 +2030,9 @@ body.sidebar-open {
   }
 
   .login__visual {
-    min-height: 160px;
+    min-height: 200px;
     flex: none;
+    background-position: center 35%;
   }
 
   .login__form-wrapper {
@@ -2051,7 +2064,6 @@ body.sidebar-open {
   }
 
   .login__visual-content h1 { font-size: 1.8rem; }
-  .login__visual-content i { font-size: 2.5rem; }
 }
 
 @media (max-width: 360px) {
