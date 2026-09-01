@@ -49,7 +49,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     address: 'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
 
-    hours: 'Seg a Sáb · pedidos pelo WhatsApp',
+    hours: 'Seg a Sáb · 19h30 às 22h',
 
     deliveryFee: 5,
 

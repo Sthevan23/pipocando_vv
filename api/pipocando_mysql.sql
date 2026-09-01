@@ -255,7 +255,7 @@ INSERT INTO `settings` (
   '',
   'contato@pipocandovv.com.br',
   'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
-  'Seg a Sáb · pedidos pelo WhatsApp',
+  'Seg a Sáb · 19h30 às 22h',
   '', '',
   '',
   'Pipocas trufadas · artesanais · Vila Velha, ES',

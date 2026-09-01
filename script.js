@@ -878,7 +878,7 @@ function applySettings() {
     contactAddress.href = mapsUrl;
   }
 
-  const hoursText = String(s.hours || '').trim() || 'Seg a Sáb · pedidos pelo WhatsApp';
+  const hoursText = String(s.hours || '').trim() || 'Seg a Sáb · 19h30 às 22h';
   const contactHours = document.getElementById('contact-hours-text');
   if (contactHours) contactHours.textContent = hoursText;
   const contactHoursWrap = document.getElementById('contact-hours-wrap');
