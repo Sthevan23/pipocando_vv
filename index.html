@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css?v=5">
-  <link rel="stylesheet" href="css/pipocando-brand.css?v=14">
+  <link rel="stylesheet" href="css/pipocando-brand.css?v=16">
 </head>
 <body>
   <header class="header" id="header">
@@ -48,11 +48,12 @@
       <div class="hero__veil" aria-hidden="true"></div>
 
       <div class="container hero__content">
-        <span class="brand-logo brand-logo--hero hero__logo" id="brand-logo-hero" aria-label="Pipocando VV">
-          <span class="brand-logo__name">
+        <span class="brand-logo brand-logo--hero hero__logo brand-logo--has-image" id="brand-logo-hero" aria-label="Pipocando VV">
+          <img class="brand-logo__img" id="brand-logo-img" src="products/logo-pipocando-vv.png?v=8" alt="Pipocando VV — Pipocas Trufadas" decoding="async">
+          <span class="brand-logo__name" aria-hidden="true">
             <span id="brand-name-text">Pipocando</span><span class="brand-logo__vv" id="brand-accent">VV</span>
           </span>
-          <span class="brand-logo__sub" id="brand-sub">Pipocas Trufadas</span>
+          <span class="brand-logo__sub" id="brand-sub" aria-hidden="true">Pipocas Trufadas</span>
         </span>
 
         <h1 class="hero__title">
@@ -214,11 +215,12 @@
   <footer class="footer">
     <div class="container footer__top">
       <div class="footer__brand">
-        <a href="#topo" class="brand-logo brand-logo--footer" id="brand-logo-footer" aria-label="Pipocando VV">
-          <span class="brand-logo__name">
+        <a href="#topo" class="brand-logo brand-logo--footer brand-logo--has-image" id="brand-logo-footer" aria-label="Pipocando VV">
+          <img class="brand-logo__img brand-logo__img--footer" id="footer-brand-logo-img" src="products/logo-pipocando-vv.png?v=8" alt="Pipocando VV — Pipocas Trufadas" decoding="async">
+          <span class="brand-logo__name" aria-hidden="true">
             <span id="footer-brand-name-text">Pipocando</span><span class="brand-logo__vv" id="footer-brand-accent">VV</span>
           </span>
-          <span class="brand-logo__sub" id="footer-brand-sub">Pipocas Trufadas</span>
+          <span class="brand-logo__sub" id="footer-brand-sub" aria-hidden="true">Pipocas Trufadas</span>
         </a>
         <p class="footer__tagline" id="footer-tagline">A pipoca que virou sobremesa!</p>
       </div>
@@ -400,6 +402,6 @@
   <script src="js/product-photos.js?v=3"></script>
   <script src="js/storage.js?v=5"></script>
   <script src="js/cart-shared.js?v=4"></script>
-  <script src="script.js?v=15"></script>
+  <script src="script.js?v=17"></script>
 </body>
 </html>

@@ -44,7 +44,11 @@
 }
 
 .brand-logo--has-image .brand-logo__img {
-  mix-blend-mode: multiply;
+  mix-blend-mode: normal;
+}
+
+.brand-logo--footer.brand-logo--has-image .brand-logo__img {
+  mix-blend-mode: screen;
 }
 
 .brand-logo--hero .brand-logo__img {
