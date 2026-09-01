@@ -1924,8 +1924,32 @@ p {
 }
 
 .footer__channels span {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-brown-deep);
   line-height: 1.35;
   word-break: break-word;
+}
+
+.footer__hours {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.35rem 0;
+  color: var(--color-brown-soft);
+  font-size: 0.92rem;
+}
+
+.footer__hours i {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-pink) 14%, transparent);
+  color: var(--color-pink-deep);
+  flex-shrink: 0;
 }
 
 .footer__bottom {

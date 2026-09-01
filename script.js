@@ -869,13 +869,26 @@ function applySettings() {
 
   const contactAddress = document.getElementById('contact-address');
   if (contactAddress) {
-    const label = contactAddress.querySelector('strong');
+    const label = document.getElementById('contact-address-text') || contactAddress.querySelector('strong');
     const text = address
       .replace(/,\s*Brasil\s*$/i, '')
       .replace(/MG,\s*/, 'MG · ');
     if (label) label.textContent = text;
     else contactAddress.textContent = text;
     contactAddress.href = mapsUrl;
+  }
+
+  const hoursText = String(s.hours || '').trim() || 'Seg a Sáb · pedidos pelo WhatsApp';
+  const contactHours = document.getElementById('contact-hours-text');
+  if (contactHours) contactHours.textContent = hoursText;
+  const contactHoursWrap = document.getElementById('contact-hours-wrap');
+  if (contactHoursWrap) contactHoursWrap.hidden = !hoursText;
+  const footerHours = document.getElementById('footer-hours');
+  if (footerHours) {
+    const hoursSpan = footerHours.querySelector('span');
+    if (hoursSpan) hoursSpan.textContent = hoursText;
+    else footerHours.textContent = hoursText;
+    footerHours.hidden = !hoursText;
   }
 
   const footerPlace = document.getElementById('footer-place');
