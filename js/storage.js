@@ -675,6 +675,65 @@ const Storage = (() => {
     save(data);
   }
   function getProducts() { return sortProductsList(getAll().products); }
+
+  function normalizeStock(stock) {
+    if (stock === null || stock === undefined || stock === '') return null;
+    const n = Number(stock);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.floor(n));
+  }
+
+  function productTracksStock(product) {
+    return normalizeStock(product?.stock) !== null;
+  }
+
+  function productStockQty(product) {
+    return normalizeStock(product?.stock);
+  }
+
+  function getProductById(productId) {
+    const id = String(productId || '').trim();
+    if (!id) return null;
+    return (getAll().products || []).find((p) => String(p.id) === id) || null;
+  }
+
+  function isProductOrderable(product) {
+    if (!product || product.active === false) return false;
+    if (product.available === false) return false;
+    const stock = productStockQty(product);
+    if (stock === null) return true;
+    return stock > 0;
+  }
+
+  function productStockLabel(product) {
+    const stock = productStockQty(product);
+    if (stock === null) return '';
+    if (stock <= 0) return 'Esgotado';
+    if (stock <= 5) return `${stock} restante${stock === 1 ? '' : 's'}`;
+    return '';
+  }
+
+  function applyLocalStockDecrement(items) {
+    const data = getAll();
+    const need = {};
+    (items || []).forEach((item) => {
+      const pid = String(item?.productId || item?.id || '').trim();
+      if (!pid) return;
+      need[pid] = (need[pid] || 0) + Math.max(1, Number(item?.qty) || 1);
+    });
+    let changed = false;
+    data.products = (data.products || []).map((p) => {
+      const qty = need[p.id];
+      if (!qty || !productTracksStock(p)) return p;
+      const stock = productStockQty(p);
+      if (stock === null) return p;
+      const next = Math.max(0, stock - qty);
+      changed = true;
+      return { ...p, stock: next, available: next > 0 ? (p.available !== false) : false };
+    });
+    if (changed) setMemory(data);
+  }
+
   function sortOrderValue(item, fallback = 9999) {
     const n = Number(item?.sortOrder);
     return Number.isFinite(n) ? n : fallback;
@@ -1310,6 +1369,7 @@ const Storage = (() => {
           if (result.status) order.status = result.status;
           if (result.loyalty) loyalty = result.loyalty;
           data.orders.push(order);
+          applyLocalStockDecrement(itemsWithImage);
           setMemory(data);
           invalidateLoyaltyCache(phone);
           if (!loyalty) loyalty = computeLoyaltyFromOrders(data.orders, phone);
@@ -1390,6 +1450,8 @@ const Storage = (() => {
     login, loginAsync, updatePassword,
     generateId, generateOrderNumber,
     getCategoryName, formatCurrency, productDisplayPrice,
+    normalizeStock, productTracksStock, productStockQty, getProductById,
+    isProductOrderable, productStockLabel, applyLocalStockDecrement,
     getDashboardStats, getMonthlyRevenue,
     getFinishedOrdersByPeriod, getProductSalesBreakdown, getSalesPeriodStats,
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,

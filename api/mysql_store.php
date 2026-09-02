@@ -248,6 +248,9 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
         ? (((int) ($row['available'] ?? 1)) === 1)
         : true,
     ];
+    if (array_key_exists('stock', $row) && $row['stock'] !== null && $row['stock'] !== '') {
+      $product['stock'] = max(0, (int) $row['stock']);
+    }
     if (((int) ($row['price_from'] ?? 0)) === 1) {
       $product['priceFrom'] = true;
     }
@@ -785,22 +788,31 @@ function aurora_save_all(PDO $pdo, array $payload): void {
     }
 
     $hasAvailable = false;
+    $hasStock = false;
     try {
       $hasAvailable = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'available'")->fetch();
+      $hasStock = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'stock'")->fetch();
     } catch (Throwable $e) {
       $hasAvailable = false;
+      $hasStock = false;
     }
 
+    $prodColumns = 'id, name, description, price, price_from, category_id, image, featured, slug, size,
+            promo_active, promo_price, promo_label, best_seller, active';
+    $prodPlaceholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+    if ($hasAvailable) {
+      $prodColumns .= ', available';
+      $prodPlaceholders .= ', ?';
+    }
+    if ($hasStock) {
+      $prodColumns .= ', stock';
+      $prodPlaceholders .= ', ?';
+    }
+    $prodColumns .= ', sort_order';
+    $prodPlaceholders .= ', ?';
+
     $prodStmt = $pdo->prepare(
-      $hasAvailable
-        ? 'INSERT INTO products (
-            id, name, description, price, price_from, category_id, image, featured, slug, size,
-            promo_active, promo_price, promo_label, best_seller, active, available, sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        : 'INSERT INTO products (
-            id, name, description, price, price_from, category_id, image, featured, slug, size,
-            promo_active, promo_price, promo_label, best_seller, active, sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      "INSERT INTO products ($prodColumns) VALUES ($prodPlaceholders)"
     );
     $flavorStmt = $pdo->prepare(
       'INSERT INTO product_flavors (product_id, flavor, sort_order) VALUES (?, ?, ?)'
@@ -839,6 +851,16 @@ function aurora_save_all(PDO $pdo, array $payload): void {
       ];
       if ($hasAvailable) {
         $row[] = aurora_bool($p['available'] ?? true);
+      }
+      if ($hasStock) {
+        $stockVal = $p['stock'] ?? null;
+        if ($stockVal === '' || $stockVal === false) {
+          $row[] = null;
+        } elseif ($stockVal === null) {
+          $row[] = null;
+        } else {
+          $row[] = max(0, (int) $stockVal);
+        }
       }
       $row[] = (int) ($p['sortOrder'] ?? $i);
       $prodStmt->execute($row);
@@ -896,6 +918,7 @@ function aurora_save_all(PDO $pdo, array $payload): void {
     }
 
     // Pedidos + itens
+    $oldOrdersForStock = aurora_load_orders_with_items($pdo);
     $pdo->exec('DELETE FROM order_items');
     $pdo->exec('DELETE FROM orders');
     $orderStmt = $pdo->prepare(
@@ -941,6 +964,8 @@ function aurora_save_all(PDO $pdo, array $payload): void {
         ]);
       }
     }
+
+    aurora_sync_stock_from_order_changes($pdo, $oldOrdersForStock, $payload['orders'] ?? []);
 
     // Financeiro
     $pdo->exec('DELETE FROM finance');
@@ -1025,6 +1050,12 @@ function aurora_save_all(PDO $pdo, array $payload): void {
     aurora_write_public_catalog($pdo);
   } catch (Throwable $e) {
     // não falha o save se o JSON estático não gravar
+  }
+
+  try {
+    aurora_patch_catalog_stock_from_db($pdo);
+  } catch (Throwable $e) {
+    // ignore
   }
 }
 
@@ -1146,6 +1177,176 @@ function aurora_upsert_client(PDO $pdo, array $client): ?string {
   return $id;
 }
 
+function aurora_product_has_stock_column(PDO $pdo): bool {
+  static $cache = [];
+  $key = spl_object_hash($pdo);
+  if (array_key_exists($key, $cache)) return $cache[$key];
+  try {
+    $cache[$key] = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'stock'")->fetch();
+  } catch (Throwable $e) {
+    $cache[$key] = false;
+  }
+  return $cache[$key];
+}
+
+function aurora_collect_active_order_stock(array $orders): array {
+  $map = [];
+  foreach ($orders as $o) {
+    if (!is_array($o)) continue;
+    if (($o['status'] ?? '') === 'cancelado') continue;
+    foreach ($o['items'] ?? [] as $item) {
+      if (!is_array($item)) continue;
+      $pid = trim((string) ($item['productId'] ?? $item['id'] ?? ''));
+      if ($pid === '') continue;
+      $map[$pid] = ($map[$pid] ?? 0) + max(1, (int) ($item['qty'] ?? 1));
+    }
+  }
+  return $map;
+}
+
+function aurora_load_orders_with_items(PDO $pdo): array {
+  if (!aurora_table_exists($pdo, 'orders')) return [];
+  $itemsByOrder = [];
+  if (aurora_table_exists($pdo, 'order_items')) {
+    foreach ($pdo->query('SELECT order_id, product_id, qty FROM order_items ORDER BY id ASC')->fetchAll() as $item) {
+      $oid = (string) ($item['order_id'] ?? '');
+      if ($oid === '') continue;
+      if (!isset($itemsByOrder[$oid])) $itemsByOrder[$oid] = [];
+      $itemsByOrder[$oid][] = [
+        'productId' => (string) ($item['product_id'] ?? ''),
+        'qty' => max(1, (int) ($item['qty'] ?? 1)),
+      ];
+    }
+  }
+  $orders = [];
+  foreach ($pdo->query('SELECT id, status FROM orders')->fetchAll() as $row) {
+    $oid = (string) ($row['id'] ?? '');
+    if ($oid === '') continue;
+    $orders[] = [
+      'id' => $oid,
+      'status' => (string) ($row['status'] ?? 'novo'),
+      'items' => $itemsByOrder[$oid] ?? [],
+    ];
+  }
+  return $orders;
+}
+
+function aurora_sync_stock_from_order_changes(PDO $pdo, array $oldOrders, array $newOrders): void {
+  if (!aurora_product_has_stock_column($pdo)) return;
+
+  $oldMap = aurora_collect_active_order_stock($oldOrders);
+  $newMap = aurora_collect_active_order_stock($newOrders);
+  $ids = array_unique(array_merge(array_keys($oldMap), array_keys($newMap)));
+  if (!$ids) return;
+
+  $sel = $pdo->prepare('SELECT id, stock FROM products WHERE id = ? FOR UPDATE');
+  $upd = $pdo->prepare('UPDATE products SET stock = ?, available = ? WHERE id = ?');
+
+  foreach ($ids as $pid) {
+    $sel->execute([$pid]);
+    $row = $sel->fetch(PDO::FETCH_ASSOC);
+    if (!$row || $row['stock'] === null) continue;
+
+    $delta = ($oldMap[$pid] ?? 0) - ($newMap[$pid] ?? 0);
+    if ($delta === 0) continue;
+
+    $next = max(0, (int) $row['stock'] + $delta);
+    $upd->execute([$next, $next > 0 ? 1 : 0, $pid]);
+  }
+}
+
+function aurora_reserve_stock_for_order(PDO $pdo, array $items): void {
+  if (!aurora_product_has_stock_column($pdo)) return;
+
+  $need = [];
+  foreach ($items as $item) {
+    if (!is_array($item)) continue;
+    $pid = trim((string) ($item['productId'] ?? $item['id'] ?? ''));
+    if ($pid === '') continue;
+    $need[$pid] = ($need[$pid] ?? 0) + max(1, (int) ($item['qty'] ?? 1));
+  }
+  if (!$need) return;
+
+  $sel = $pdo->prepare('SELECT id, name, stock FROM products WHERE id = ? FOR UPDATE');
+  $upd = $pdo->prepare('UPDATE products SET stock = ?, available = ? WHERE id = ?');
+
+  foreach ($need as $pid => $qty) {
+    $sel->execute([$pid]);
+    $row = $sel->fetch(PDO::FETCH_ASSOC);
+    if (!$row || $row['stock'] === null) continue;
+
+    $stock = (int) $row['stock'];
+    if ($stock < $qty) {
+      $name = trim((string) ($row['name'] ?? $pid));
+      throw new RuntimeException("Estoque insuficiente para {$name} (restam {$stock}).");
+    }
+    $next = $stock - $qty;
+    $upd->execute([$next, $next > 0 ? 1 : 0, $pid]);
+  }
+}
+
+function aurora_patch_catalog_stock_from_db(PDO $pdo): bool {
+  if (!aurora_product_has_stock_column($pdo)) return false;
+
+  $rows = $pdo->query('SELECT id, stock, available FROM products')->fetchAll(PDO::FETCH_ASSOC);
+  if (!$rows) return false;
+
+  $stockMap = [];
+  $availableMap = [];
+  foreach ($rows as $row) {
+    $id = (string) ($row['id'] ?? '');
+    if ($id === '') continue;
+    if ($row['stock'] !== null && $row['stock'] !== '') {
+      $stockMap[$id] = max(0, (int) $row['stock']);
+    }
+    $availableMap[$id] = ((int) ($row['available'] ?? 1)) === 1;
+  }
+
+  $root = dirname(__DIR__);
+  $paths = [
+    $root . DIRECTORY_SEPARATOR . 'catalog.json',
+    $root . DIRECTORY_SEPARATOR . 'catalog.live.json',
+    $root . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'catalog.json',
+  ];
+
+  $source = null;
+  foreach ($paths as $path) {
+    if (!is_file($path)) continue;
+    $raw = @file_get_contents($path);
+    if (!is_string($raw) || $raw === '') continue;
+    $data = json_decode($raw, true);
+    if (!is_array($data) || !isset($data['products'])) continue;
+    $source = $data;
+    break;
+  }
+  if (!$source) return false;
+
+  foreach ($source['products'] as &$prod) {
+    if (!is_array($prod)) continue;
+    $pid = (string) ($prod['id'] ?? '');
+    if ($pid === '') continue;
+    if (array_key_exists($pid, $stockMap)) {
+      $prod['stock'] = $stockMap[$pid];
+    } else {
+      unset($prod['stock']);
+    }
+    if (array_key_exists($pid, $availableMap)) {
+      $prod['available'] = $availableMap[$pid];
+    }
+  }
+  unset($prod);
+
+  $source['generatedAt'] = gmdate('c');
+  $json = json_encode($source, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  if ($json === false) return false;
+
+  $ok = false;
+  foreach ($paths as $path) {
+    if (@file_put_contents($path, $json) !== false) $ok = true;
+  }
+  return $ok;
+}
+
 function aurora_create_order(PDO $pdo, array $order, ?array $client = null): array {
   $resolvedClientId = null;
   if (is_array($client)) {
@@ -1227,6 +1428,8 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
       }
     }
 
+    aurora_reserve_stock_for_order($pdo, $order['items'] ?? []);
+
     $ins = $pdo->prepare(
       'INSERT INTO orders (
         id, number, client_id, client_name, client_whatsapp, total, status, ordered_at,
@@ -1270,6 +1473,12 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
   } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     throw $e;
+  }
+
+  try {
+    aurora_patch_catalog_stock_from_db($pdo);
+  } catch (Throwable $e) {
+    // Pedido já gravado — falha no espelho do cardápio não cancela
   }
 
   return [

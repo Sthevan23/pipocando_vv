@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=3">
+  <link rel="stylesheet" href="admin.css?v=4">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -172,7 +172,7 @@
         <div class="table-responsive">
           <table class="table" id="products-table">
             <thead>
-              <tr><th>No cardápio</th><th>Imagem</th><th>Nome</th><th>Categoria</th><th>Volume</th><th>Preço / Promo</th><th>Status</th><th>Ações</th></tr>
+              <tr><th>No cardápio</th><th>Imagem</th><th>Nome</th><th>Categoria</th><th>Volume</th><th>Preço / Promo</th><th>Estoque</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -264,11 +264,31 @@
           <table class="table" id="fin-products-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Produto</th>
-                <th>Qtd. vendida</th>
-                <th>Preço médio</th>
-                <th>Faturamento</th>
+                <th>
+                  <button type="button" class="th-sort" data-sort="rank" aria-label="Ordenar por posição">
+                    # <i class="fas fa-sort" aria-hidden="true"></i>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="th-sort" data-sort="name" aria-label="Ordenar por produto">
+                    Produto <i class="fas fa-sort" aria-hidden="true"></i>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="th-sort" data-sort="qty" aria-label="Ordenar por quantidade">
+                    Qtd. vendida <i class="fas fa-sort" aria-hidden="true"></i>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="th-sort" data-sort="avgPrice" aria-label="Ordenar por preço médio">
+                    Preço médio <i class="fas fa-sort" aria-hidden="true"></i>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="th-sort is-active" data-sort="revenue" aria-label="Ordenar por faturamento">
+                    Faturamento <i class="fas fa-sort-down" aria-hidden="true"></i>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -528,9 +548,9 @@
   <script src="../js/pipoca-config.js?v=1"></script>
   <script src="../js/default-data.js?v=2"></script>
   <script src="../js/product-photos.js?v=2"></script>
-  <script src="../js/storage.js?v=11"></script>
+  <script src="../js/storage.js?v=12"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=7"></script>
+  <script src="admin.js?v=8"></script>
 </body>
 </html>
 

@@ -656,6 +656,52 @@ function buildOrderWhatsAppMessage({ product, fullName, phone, flavor, unit }) {
   });
 }
 
+function splitWhatsAppOptionList(text) {
+  const raw = String(text || '').trim();
+  if (!raw || raw === 'Não se aplica' || raw === '—') return [];
+  return raw
+    .split(/\s*(?:\+|·|,|;)\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function parseWhatsAppFlavorLines(flavorText) {
+  let raw = String(flavorText || '').trim();
+  if (!raw || raw === 'Não se aplica') return [];
+  raw = raw.replace(/^(coberturas?|sabores?)\s*:\s*/i, '');
+  return splitWhatsAppOptionList(raw);
+}
+
+function formatWhatsAppItemBlock(item) {
+  const qty = Number(item.qty) || 1;
+  const unit = Number(item.price) || 0;
+  const sub = unit * qty;
+  const size = String(item.size || '').trim() || 'A combinar';
+  const flavorLines = parseWhatsAppFlavorLines(item.flavor);
+  const notesBlock = item.notes ? `\n*Obs:*\n${item.notes}` : '';
+
+  let flavorsBlock = '';
+  if (flavorLines.length) {
+    flavorsBlock = `*Sabores:*\n${flavorLines.join('\n')}`;
+  } else {
+    const fallback = String(item.flavor || '').trim();
+    if (fallback && fallback !== 'Não se aplica') {
+      flavorsBlock = `*Sabores:*\n${fallback}`;
+    }
+  }
+
+  return (
+    `*ITEM:* ${item.name}\n` +
+    `*Qtd:* ${qty}\n` +
+    `*Tamanho:*\n${size}\n` +
+    (flavorsBlock ? `${flavorsBlock}\n` : '') +
+    `*Valor unit.:* ${unit > 0 ? Storage.formatCurrency(unit) : 'Consultar'}\n` +
+    `*Subtotal:* ${sub > 0 ? Storage.formatCurrency(sub) : 'Consultar'}` +
+    `${notesBlock}\n` +
+    `--------------------------------`
+  );
+}
+
 function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty, address, payment, delivery: deliveryOverride }) {
   const s = Storage.getSettings();
   const storeName = (s.name || 'Aurora Confeitaria Artesanal').toUpperCase();
@@ -672,27 +718,7 @@ function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty
   const payLabel = Cart?.paymentLabel?.(pay)
     || (pay === 'dinheiro' ? 'Dinheiro' : pay === 'cartao' ? 'Link para cartão de crédito (repasse da taxa)' : 'Pix');
   const payNote = pay === 'cartao' ? 'Obs.: taxa do cartão repassada ao cliente.\n' : '';
-  const lines = items.map((item) => {
-    const qty = Number(item.qty) || 1;
-    const unit = Number(item.price) || 0;
-    const sub = unit * qty;
-    const size = item.size || 'A combinar';
-    const flavorLine = item.flavor || 'Não se aplica';
-    const imageUrl = getPublicAssetUrl(item.image);
-    const imageBlock = imageUrl ? `\n  Foto: ${imageUrl}` : '';
-    const notesBlock = item.notes ? `\n  Obs: ${item.notes}` : '';
-    return (
-      `* ITEM: ${item.name}\n` +
-      `  Qtd: ${qty}\n` +
-      `  Tamanho/modelo: ${size}\n` +
-      `  Sabor: ${flavorLine}\n` +
-      `  Valor unit.: ${unit > 0 ? Storage.formatCurrency(unit) : 'Consultar'}\n` +
-      `  Subtotal: ${sub > 0 ? Storage.formatCurrency(sub) : 'Consultar'}` +
-      `${notesBlock}` +
-      `${imageBlock}\n` +
-      `--------------------------------`
-    );
-  }).join('\n');
+  const lines = items.map((item) => formatWhatsAppItemBlock(item)).join('\n');
 
   const couponBlock = coupon && discount > 0
     ? (

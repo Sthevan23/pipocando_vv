@@ -263,7 +263,7 @@ function renderDashboard() {
   document.getElementById('stat-clients').textContent = stats.totalClients;
   document.getElementById('stat-products').textContent = stats.totalProducts;
 
-  const allOrders = Storage.getOrders().slice().reverse();
+  const allOrders = sortOrdersNewestFirst(Storage.getOrders());
   const recent = allOrders.slice(0, 8);
   const products = Storage.getProducts();
   const tbody = document.querySelector('#recent-orders-table tbody');
@@ -361,6 +361,15 @@ function initOrderFilters() {
   });
 }
 
+function sortOrdersNewestFirst(orders) {
+  return (orders || []).slice().sort((a, b) => {
+    const tb = new Date(b.date || 0).getTime();
+    const ta = new Date(a.date || 0).getTime();
+    if (Number.isFinite(tb) && Number.isFinite(ta) && tb !== ta) return tb - ta;
+    return String(b.number || '').localeCompare(String(a.number || ''), 'pt-BR');
+  });
+}
+
 function renderOrders() {
   let orders = Storage.getOrders();
   if (orderFilter === 'today') {
@@ -368,7 +377,7 @@ function renderOrders() {
   } else if (orderFilter !== 'all') {
     orders = orders.filter((o) => o.status === orderFilter);
   }
-  orders = orders.slice().reverse();
+  orders = sortOrdersNewestFirst(orders);
 
   const tbody = document.querySelector('#orders-table tbody');
   if (!orders.length) {
@@ -2020,6 +2029,14 @@ function openCatalogOrderModal(focus = 'products') {
   renderModal();
 }
 
+function formatAdminStock(p) {
+  const stock = Storage.productStockQty?.(p);
+  if (stock === null || stock === undefined) return '<span class="badge badge--muted">Sem limite</span>';
+  if (stock <= 0) return '<span class="badge badge--danger">Esgotado</span>';
+  if (stock <= 5) return `<span class="badge badge--warn">${stock} un.</span>`;
+  return `<span class="badge badge--ok">${stock} un.</span>`;
+}
+
 function renderProducts() {
   const products = Storage.getProducts();
   const tbody = document.querySelector('#products-table tbody');
@@ -2039,6 +2056,7 @@ function renderProducts() {
       <td data-label="Categoria">${Storage.getCategoryName(p.categoryId)}</td>
       <td data-label="Volume">${size ? `<span class="badge badge--info">${escapeHtml(size)}</span>` : '—'}</td>
       <td data-label="Preço">${Number(p.price) > 0 ? Storage.formatCurrency(p.price) : 'Consultar'}${p.promoActive && p.promoPrice != null ? `<br><small style="color:#fc7890">Promo ${Storage.formatCurrency(p.promoPrice)}</small>` : ''}</td>
+      <td data-label="Estoque">${formatAdminStock(p)}</td>
       <td data-label="Status">${p.featured ? '<i class="fas fa-star" style="color:#FFD700"></i>' : '—'}${p.bestSeller ? ' <span class="badge badge--novo">Mais vendido</span>' : ''}${p.promoActive ? ' <span class="badge badge--novo">Promo</span>' : ''}</td>
       <td data-label="Ações">
         <div class="table__actions">
@@ -2171,10 +2189,17 @@ function openProductModal(product = null) {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Estoque (unidades)</label>
+          <input type="number" id="prod-stock" min="0" step="1" value="${product?.stock ?? ''}" placeholder="Vazio = sem limite">
+          <small style="display:block;margin-top:6px;color:var(--texto-claro)">Deixe vazio para vender sem limite. Em 0 aparece como esgotado no site.</small>
+        </div>
+        <div class="form-group">
           <label>Volume / ml do produto</label>
           <input type="text" id="prod-size" value="${product?.size || ''}" placeholder="Ex: 300ml ou 140ml" inputmode="text" autocomplete="off">
           <small style="display:block;margin-top:6px;color:var(--texto-claro)">Aparece no selo da foto (como 300ml). Digite só o número (ex: 300) que completa com ml.</small>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group" style="display:flex;align-items:flex-end">
           <div id="prod-size-preview" style="width:100%;min-height:44px;border:1px dashed var(--rosa-escuro);border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--marrom-escuro);font-weight:700;font-size:0.9rem">
             ${product?.size ? `Selo: ${escapeHtml(product.size)}` : 'Selo: —'}
@@ -2306,6 +2331,12 @@ function openProductModal(product = null) {
         size: formatProductSize(document.getElementById('prod-size').value),
         flavors: parsedFlavors.flavors,
         flavorPrices: parsedFlavors.flavorPrices,
+        stock: (() => {
+          const raw = document.getElementById('prod-stock').value.trim();
+          if (raw === '') return null;
+          const n = parseInt(raw, 10);
+          return Number.isFinite(n) ? Math.max(0, n) : null;
+        })(),
         active: document.getElementById('prod-active').checked,
         available: document.getElementById('prod-available').checked,
       };
@@ -2770,6 +2801,7 @@ function openCouponModal(coupon = null) {
 let revenueChart = null;
 let finPeriod = 'all';
 let finPeriodBound = false;
+let finProductSort = { key: 'revenue', dir: 'desc' };
 
 function initFinanceiro() {
   const stats = Storage.getDashboardStats();
@@ -2788,6 +2820,20 @@ function initFinanceiro() {
         document.querySelectorAll('#fin-period-tabs .filter-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         finPeriod = tab.dataset.period;
+        renderProductSales();
+      });
+    });
+
+    document.querySelectorAll('#fin-products-table .th-sort').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.sort;
+        if (!key) return;
+        if (finProductSort.key === key) {
+          finProductSort.dir = finProductSort.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          finProductSort.key = key;
+          finProductSort.dir = key === 'name' ? 'asc' : 'desc';
+        }
         renderProductSales();
       });
     });
@@ -2840,6 +2886,35 @@ function renderFinanceEntries() {
   });
 }
 
+function sortFinProducts(products, key, dir) {
+  const mul = dir === 'asc' ? 1 : -1;
+  const field = key === 'rank' ? 'revenue' : key;
+  return (products || []).slice().sort((a, b) => {
+    if (field === 'name') {
+      const byName = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' });
+      return mul * byName;
+    }
+    const diff = (Number(a[field]) || 0) - (Number(b[field]) || 0);
+    if (diff !== 0) return mul * diff;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' });
+  });
+}
+
+function updateFinSortHeaders() {
+  document.querySelectorAll('#fin-products-table .th-sort').forEach((btn) => {
+    const icon = btn.querySelector('i');
+    const active = btn.dataset.sort === finProductSort.key;
+    btn.classList.toggle('is-active', active);
+    if (active) {
+      btn.setAttribute('aria-sort', finProductSort.dir === 'asc' ? 'ascending' : 'descending');
+      if (icon) icon.className = finProductSort.dir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+    } else {
+      btn.removeAttribute('aria-sort');
+      if (icon) icon.className = 'fas fa-sort';
+    }
+  });
+}
+
 function renderProductSales() {
   const periodStats = Storage.getSalesPeriodStats(finPeriod);
   const tbody = document.querySelector('#fin-products-table tbody');
@@ -2849,20 +2924,23 @@ function renderProductSales() {
   const periodLabels = { all: 'todo o período', today: 'hoje', month: 'este mês' };
   summaryEl.textContent = `${periodStats.orderCount} pedido(s) · ${periodStats.cakesSold} item(ns) · ${Storage.formatCurrency(periodStats.totalRevenue)} (${periodLabels[finPeriod]})`;
 
+  updateFinSortHeaders();
+
   if (!periodStats.products.length) {
     tbody.innerHTML = '';
     emptyEl.hidden = false;
     return;
   }
 
+  const rows = sortFinProducts(periodStats.products, finProductSort.key, finProductSort.dir);
   emptyEl.hidden = true;
-  tbody.innerHTML = periodStats.products.map((row, i) => `
+  tbody.innerHTML = rows.map((row, i) => `
     <tr>
-      <td>${i + 1}</td>
-      <td><strong>${escapeHtml(row.name)}</strong></td>
-      <td>${row.qty}</td>
-      <td>${Storage.formatCurrency(row.avgPrice)}</td>
-      <td><strong>${Storage.formatCurrency(row.revenue)}</strong></td>
+      <td data-label="#">${i + 1}</td>
+      <td data-label="Produto"><strong>${escapeHtml(row.name)}</strong></td>
+      <td data-label="Qtd. vendida">${row.qty}</td>
+      <td data-label="Preço médio">${Storage.formatCurrency(row.avgPrice)}</td>
+      <td data-label="Faturamento"><strong>${Storage.formatCurrency(row.revenue)}</strong></td>
     </tr>
   `).join('');
 }

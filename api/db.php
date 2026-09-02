@@ -112,6 +112,12 @@ function aurora_ensure_schema(PDO $pdo): void {
         'available',
         "TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Disponivel para pedido no site'"
       );
+      aurora_ensure_column(
+        $pdo,
+        'products',
+        'stock',
+        "INT DEFAULT NULL COMMENT 'NULL = sem controle de estoque'"
+      );
       aurora_ensure_column($pdo, 'products', 'sort_order', 'INT NOT NULL DEFAULT 0');
     }
 

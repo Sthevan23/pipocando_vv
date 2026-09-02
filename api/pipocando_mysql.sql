@@ -94,6 +94,7 @@ CREATE TABLE `products` (
   `best_seller` TINYINT(1) NOT NULL DEFAULT 0,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `available` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Disponivel para pedido no site',
+  `stock` INT DEFAULT NULL COMMENT 'NULL = sem controle de estoque',
   `sort_order` INT NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

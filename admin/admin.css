@@ -670,6 +670,36 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   white-space: nowrap;
 }
 
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+
+.th-sort i {
+  opacity: 0.32;
+  font-size: 0.78em;
+  width: 0.9em;
+  text-align: center;
+}
+
+.th-sort:hover i,
+.th-sort.is-active i {
+  opacity: 1;
+  color: var(--rosa-escuro);
+}
+
 .table td {
   padding: 14px 20px;
   border-bottom: 1px solid #f5f5f5;
@@ -907,6 +937,10 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 .badge--entrega { background: #F3E5F5; color: #9C27B0; }
 .badge--finalizado { background: #E8F5E9; color: var(--success); }
 .badge--cancelado { background: #FFEBEE; color: var(--danger); }
+.badge--muted { background: #f3f3f3; color: #777; }
+.badge--danger { background: #FFEBEE; color: var(--danger); }
+.badge--warn { background: #FFF3E0; color: #b86a00; }
+.badge--ok { background: #E8F5E9; color: var(--success); }
 
 /* --- Filter Tabs --- */
 .filter-tabs {
@@ -2023,6 +2057,37 @@ body.sidebar-open {
 
   .table thead {
     display: none;
+  }
+
+  #fin-products-table thead {
+    display: block;
+    margin: 0 0 8px;
+  }
+
+  #fin-products-table thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  #fin-products-table thead th {
+    display: block;
+    padding: 0;
+    background: transparent;
+    white-space: normal;
+  }
+
+  #fin-products-table .th-sort {
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid rgba(93, 64, 55, 0.12);
+    font-size: 0.72rem;
+  }
+
+  #fin-products-table .th-sort.is-active {
+    border-color: var(--rosa-escuro);
+    background: #fff5f8;
   }
 
   .table tbody {
