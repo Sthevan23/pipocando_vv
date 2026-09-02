@@ -891,8 +891,11 @@ function applyStoreStatus() {
   if (banner && text) {
     if (!open) {
       banner.hidden = false;
-      const hours = Storage.buildStoreHoursLabel?.(Storage.getSettings()) || 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h';
-      text.innerHTML = `<strong>Estamos fechados agora.</strong> <span class="store-status-banner__hours">Horário: ${hours}</span>`;
+      const s = Storage.getSettings?.() || {};
+      const hours = String(s.hours || '').trim()
+        || Storage.buildStoreHoursLabel?.(s)
+        || 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h';
+      text.innerHTML = `<strong>Estamos fechados agora.</strong> <span class="store-status-banner__hours">${hours}</span>`;
     } else {
       banner.hidden = true;
     }
