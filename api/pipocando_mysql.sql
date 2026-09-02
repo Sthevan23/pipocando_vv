@@ -66,7 +66,8 @@ CREATE TABLE `settings` (
   `store_status` VARCHAR(20) NOT NULL DEFAULT 'auto' COMMENT 'auto, open, closed',
   `open_time` VARCHAR(5) NOT NULL DEFAULT '19:30',
   `close_time` VARCHAR(5) NOT NULL DEFAULT '22:00',
-  `open_days` VARCHAR(30) NOT NULL DEFAULT '1,2,3,4,5,6' COMMENT '0=Dom … 6=Sáb',
+  `open_days` VARCHAR(30) NOT NULL DEFAULT '0,3,4,5,6' COMMENT '0=Dom … 6=Sáb',
+  `store_schedule` TEXT NULL,
   `data_version` INT UNSIGNED NOT NULL DEFAULT 2,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -261,7 +262,7 @@ INSERT INTO `settings` (
   `instagram`, `instagram_user`, `facebook`, `email`, `address`, `hours`,
   `followers`, `posts`, `map_embed`, `hero_badge`, `hero_story`,
   `sobre_text1`, `sobre_text2`, `delivery_fee`, `delivery_note`,
-  `store_status`, `open_time`, `close_time`, `open_days`, `data_version`
+  `store_status`, `open_time`, `close_time`, `open_days`, `store_schedule`, `data_version`
 ) VALUES (
   1,
   'Pipocando VV',
@@ -275,7 +276,7 @@ INSERT INTO `settings` (
   '',
   'contato@pipocandovv.com.br',
   'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
-  'Seg a Sáb · 19h30 às 22h',
+  'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h',
   '', '',
   '',
   'Pipocas trufadas · artesanais · Vila Velha, ES',
@@ -301,7 +302,8 @@ INSERT INTO `settings` (
   'auto',
   '19:30',
   '22:00',
-  '1,2,3,4,5,6',
+  '0,3,4,5,6',
+  '[{"days":[3,4,5],"open":"19:30","close":"22:00"},{"days":[0,6],"open":"12:00","close":"18:00"}]',
   2
 );
 

@@ -149,8 +149,9 @@ function aurora_ensure_schema(PDO $pdo): void {
       aurora_ensure_column($pdo, 'settings', 'store_status', "VARCHAR(20) NOT NULL DEFAULT 'auto' COMMENT 'auto, open, closed'");
       aurora_ensure_column($pdo, 'settings', 'open_time', "VARCHAR(5) NOT NULL DEFAULT '19:30'");
       aurora_ensure_column($pdo, 'settings', 'close_time', "VARCHAR(5) NOT NULL DEFAULT '22:00'");
-      aurora_ensure_column($pdo, 'settings', 'open_days', "VARCHAR(30) NOT NULL DEFAULT '1,2,3,4,5,6' COMMENT '0=Dom … 6=Sáb'");
-    }
+  aurora_ensure_column($pdo, 'settings', 'open_days', "VARCHAR(30) NOT NULL DEFAULT '0,3,4,5,6' COMMENT '0=Dom … 6=Sáb'");
+  aurora_ensure_column($pdo, 'settings', 'store_schedule', 'TEXT NULL');
+}
 
     // Cupons: cria a tabela se ainda não existir (bancos antigos sem migrate)
     aurora_ensure_coupons_table($pdo);

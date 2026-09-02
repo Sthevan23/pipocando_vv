@@ -891,7 +891,7 @@ function applyStoreStatus() {
   if (banner && text) {
     if (!open) {
       banner.hidden = false;
-      const hours = Storage.buildStoreHoursLabel?.(Storage.getSettings()) || 'Seg a Sáb · 19h30 às 22h';
+      const hours = Storage.buildStoreHoursLabel?.(Storage.getSettings()) || 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h';
       text.innerHTML = `<strong>Estamos fechados agora.</strong> <span class="store-status-banner__hours">Horário: ${hours}</span>`;
     } else {
       banner.hidden = true;
@@ -935,7 +935,7 @@ function applySettings() {
     contactAddress.href = mapsUrl;
   }
 
-  const hoursText = String(s.hours || '').trim() || 'Seg a Sáb · 19h30 às 22h';
+  const hoursText = String(s.hours || '').trim() || 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h';
   const contactHours = document.getElementById('contact-hours-text');
   if (contactHours) contactHours.textContent = hoursText;
   const contactHoursWrap = document.getElementById('contact-hours-wrap');

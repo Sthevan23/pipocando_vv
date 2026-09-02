@@ -336,7 +336,8 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     'storeStatus' => (string) ($settingsRow['store_status'] ?? 'auto'),
     'openTime' => (string) ($settingsRow['open_time'] ?? '19:30'),
     'closeTime' => (string) ($settingsRow['close_time'] ?? '22:00'),
-    'openDays' => aurora_parse_open_days($settingsRow['open_days'] ?? '1,2,3,4,5,6'),
+    'openDays' => aurora_parse_open_days($settingsRow['open_days'] ?? '0,3,4,5,6'),
+    'storeSchedule' => aurora_parse_store_schedule($settingsRow['store_schedule'] ?? null),
   ];
   pipocando_merge_brand_into_settings($settings);
 
@@ -766,9 +767,17 @@ function aurora_save_all(PDO $pdo, array $payload): void {
       in_array(($s['storeStatus'] ?? 'auto'), ['auto', 'open', 'closed'], true) ? ($s['storeStatus'] ?? 'auto') : 'auto',
       preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['openTime'] ?? '')) ? $s['openTime'] : '19:30',
       preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? $s['closeTime'] : '22:00',
-      aurora_format_open_days($s['openDays'] ?? [1, 2, 3, 4, 5, 6]),
+      aurora_format_open_days($s['openDays'] ?? [0, 3, 4, 5, 6]),
       $version,
     ]);
+
+    try {
+      $pdo->prepare('UPDATE settings SET store_schedule = ? WHERE id = 1')->execute([
+        aurora_format_store_schedule($s['storeSchedule'] ?? null),
+      ]);
+    } catch (Throwable $e) {
+      // coluna pode ainda não existir em bancos antigos — ensure cria no próximo boot
+    }
 
     $auth = $payload['auth'] ?? [];
     if (!empty($auth['email']) && isset($auth['password']) && $auth['password'] !== '') {
@@ -1730,6 +1739,42 @@ function aurora_loyalty_stats(PDO $pdo, string $phone): array {
   ];
 }
 
+function aurora_default_store_schedule(): array {
+  return [
+    ['days' => [3, 4, 5], 'open' => '19:30', 'close' => '22:00'],
+    ['days' => [0, 6], 'open' => '12:00', 'close' => '18:00'],
+  ];
+}
+
+function aurora_parse_store_schedule($value): array {
+  if (is_string($value) && $value !== '') {
+    $decoded = json_decode($value, true);
+    if (is_array($decoded)) $value = $decoded;
+  }
+  if (!is_array($value) || !$value) {
+    return aurora_default_store_schedule();
+  }
+  $windows = [];
+  foreach ($value as $win) {
+    if (!is_array($win)) continue;
+    $rawDays = $win['days'] ?? [];
+    $days = aurora_parse_open_days($rawDays);
+    $open = (string) ($win['open'] ?? $win['openTime'] ?? '19:30');
+    $close = (string) ($win['close'] ?? $win['closeTime'] ?? '22:00');
+    if (!preg_match('/^\d{1,2}:\d{2}$/', $open) || !preg_match('/^\d{1,2}:\d{2}$/', $close) || !$days) {
+      continue;
+    }
+    $windows[] = ['days' => $days, 'open' => $open, 'close' => $close];
+  }
+  return $windows ?: aurora_default_store_schedule();
+}
+
+function aurora_format_store_schedule($value): string {
+  $windows = aurora_parse_store_schedule($value);
+  $json = json_encode($windows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  return $json !== false ? $json : '[]';
+}
+
 function aurora_parse_open_days($value): array {
   if (is_array($value)) {
     $days = array_map('intval', $value);
@@ -1738,11 +1783,15 @@ function aurora_parse_open_days($value): array {
   }
   $days = array_values(array_unique(array_filter($days, static fn($d) => $d >= 0 && $d <= 6)));
   sort($days);
-  return $days ?: [1, 2, 3, 4, 5, 6];
+  return $days;
 }
 
 function aurora_format_open_days($value): string {
-  return implode(',', aurora_parse_open_days($value));
+  $days = aurora_parse_open_days($value);
+  if (!$days) {
+    $days = [0, 3, 4, 5, 6];
+  }
+  return implode(',', $days);
 }
 
 function aurora_ensure_store_settings_columns(PDO $pdo): void {
@@ -1751,7 +1800,8 @@ function aurora_ensure_store_settings_columns(PDO $pdo): void {
   aurora_ensure_column($pdo, 'settings', 'store_status', "VARCHAR(20) NOT NULL DEFAULT 'auto'");
   aurora_ensure_column($pdo, 'settings', 'open_time', "VARCHAR(5) NOT NULL DEFAULT '19:30'");
   aurora_ensure_column($pdo, 'settings', 'close_time', "VARCHAR(5) NOT NULL DEFAULT '22:00'");
-  aurora_ensure_column($pdo, 'settings', 'open_days', "VARCHAR(30) NOT NULL DEFAULT '1,2,3,4,5,6'");
+  aurora_ensure_column($pdo, 'settings', 'open_days', "VARCHAR(30) NOT NULL DEFAULT '0,3,4,5,6'");
+  aurora_ensure_column($pdo, 'settings', 'store_schedule', "TEXT NULL");
 }
 
 function aurora_save_settings_only(PDO $pdo, array $settings): void {
@@ -1787,7 +1837,8 @@ function aurora_save_settings_only(PDO $pdo, array $settings): void {
     'storeStatus' => (string) ($row['store_status'] ?? 'auto'),
     'openTime' => (string) ($row['open_time'] ?? '19:30'),
     'closeTime' => (string) ($row['close_time'] ?? '22:00'),
-    'openDays' => aurora_parse_open_days($row['open_days'] ?? '1,2,3,4,5,6'),
+    'openDays' => aurora_parse_open_days($row['open_days'] ?? '0,3,4,5,6'),
+    'storeSchedule' => aurora_parse_store_schedule($row['store_schedule'] ?? null),
   ];
   pipocando_merge_brand_into_settings($current);
 
@@ -1844,9 +1895,17 @@ function aurora_save_settings_only(PDO $pdo, array $settings): void {
     preg_match('/^\d{1,2}:\d{2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? substr($s['closeTime'], 0, 5) : (
       preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? $s['closeTime'] : '22:00'
     ),
-    aurora_format_open_days($s['openDays'] ?? [1, 2, 3, 4, 5, 6]),
+    aurora_format_open_days($s['openDays'] ?? [0, 3, 4, 5, 6]),
     (int) ($s['dataVersion'] ?? $row['data_version'] ?? 16),
   ]);
+
+  try {
+    $pdo->prepare('UPDATE settings SET store_schedule = ? WHERE id = 1')->execute([
+      aurora_format_store_schedule($s['storeSchedule'] ?? null),
+    ]);
+  } catch (Throwable $e) {
+    // ignore if column missing until ensure runs again
+  }
 }
 
 function aurora_normalize_inventory_unit($unit): string {

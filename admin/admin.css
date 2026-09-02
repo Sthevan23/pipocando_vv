@@ -1118,6 +1118,26 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   gap: 0.65rem 1rem;
 }
 
+.schedule-windows {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.schedule-window {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.schedule-window__title {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--marrom-escuro);
+  font-size: 0.95rem;
+}
+
 .stock-input--min {
   width: 90px;
 }

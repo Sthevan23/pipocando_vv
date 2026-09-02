@@ -3275,28 +3275,45 @@ function initInventoryPage() {
 }
 
 /* --- Configurações --- */
-function readOpenDaysFromForm() {
-  return [...document.querySelectorAll('#set-open-days input[type="checkbox"]')]
-    .filter((el) => el.checked)
-    .map((el) => Number(el.value))
-    .filter((n) => Number.isFinite(n));
+function readScheduleFromForm() {
+  const windows = [];
+  document.querySelectorAll('#schedule-windows .schedule-window').forEach((box, idx) => {
+    const open = document.getElementById(`set-sched-${idx}-open`)?.value || (idx === 0 ? '19:30' : '12:00');
+    const close = document.getElementById(`set-sched-${idx}-close`)?.value || (idx === 0 ? '22:00' : '18:00');
+    const days = [...box.querySelectorAll('.open-days-grid input[type="checkbox"]')]
+      .filter((el) => el.checked)
+      .map((el) => Number(el.value))
+      .filter((n) => Number.isFinite(n));
+    if (!days.length) return;
+    windows.push({ days, open, close });
+  });
+  return windows.length ? windows : (Storage.defaultPipocaSchedule?.() || []);
 }
 
-function fillOpenDaysForm(days) {
-  const set = new Set(Storage.normalizeOpenDays?.(days) || [1, 2, 3, 4, 5, 6]);
-  document.querySelectorAll('#set-open-days input[type="checkbox"]').forEach((el) => {
-    el.checked = set.has(Number(el.value));
+function fillScheduleForm(schedule) {
+  const windows = Array.isArray(schedule) && schedule.length
+    ? schedule
+    : (Storage.defaultPipocaSchedule?.() || [
+      { days: [3, 4, 5], open: '19:30', close: '22:00' },
+      { days: [0, 6], open: '12:00', close: '18:00' },
+    ]);
+  windows.slice(0, 2).forEach((win, idx) => {
+    const openEl = document.getElementById(`set-sched-${idx}-open`);
+    const closeEl = document.getElementById(`set-sched-${idx}-close`);
+    if (openEl) openEl.value = win.open || (idx === 0 ? '19:30' : '12:00');
+    if (closeEl) closeEl.value = win.close || (idx === 0 ? '22:00' : '18:00');
+    const set = new Set(win.days || []);
+    document.querySelectorAll(`#schedule-windows .schedule-window[data-window="${idx}"] .open-days-grid input`).forEach((el) => {
+      el.checked = set.has(Number(el.value));
+    });
   });
 }
 
 function syncHoursLabelFromForm() {
   const hoursInput = document.getElementById('set-hours');
   if (!hoursInput || hoursInput.dataset.manual === '1') return;
-  hoursInput.value = Storage.buildStoreHoursLabel({
-    openTime: document.getElementById('set-open-time')?.value || '19:30',
-    closeTime: document.getElementById('set-close-time')?.value || '22:00',
-    openDays: readOpenDaysFromForm(),
-  });
+  const storeSchedule = readScheduleFromForm();
+  hoursInput.value = Storage.buildStoreHoursLabel({ storeSchedule });
 }
 
 function updateStoreStatusPreview() {
@@ -3344,12 +3361,10 @@ function initSettings() {
   document.getElementById('set-instagram').value = s.instagram || '';
   document.getElementById('set-instagram-user').value = s.instagramUser || '';
   document.getElementById('set-address').value = s.address || '';
-  document.getElementById('set-open-time').value = s.openTime || '19:30';
-  document.getElementById('set-close-time').value = s.closeTime || '22:00';
-  fillOpenDaysForm(s.openDays);
+  fillScheduleForm(s.storeSchedule);
   const hoursInput = document.getElementById('set-hours');
   if (hoursInput) {
-    hoursInput.value = s.hours || Storage.buildStoreHoursLabel?.(s) || 'Seg a Sáb · 19h30 às 22h';
+    hoursInput.value = s.hours || Storage.buildStoreHoursLabel?.(s) || Storage.defaultPipocaHoursText?.() || '';
     hoursInput.dataset.manual = s.hours ? '1' : '0';
     hoursInput.addEventListener('input', () => { hoursInput.dataset.manual = '1'; });
   }
@@ -3386,10 +3401,10 @@ function initSettings() {
     adminUrlEl.value = s.adminUrl || brandDefaults.adminUrl || window.ADMIN_URL || 'https://pipocandovv.com.br/admin/login.html';
   }
 
-  ['set-open-time', 'set-close-time'].forEach((id) => {
+  ['set-sched-0-open', 'set-sched-0-close', 'set-sched-1-open', 'set-sched-1-close'].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', syncHoursLabelFromForm);
   });
-  document.querySelectorAll('#set-open-days input[type="checkbox"]').forEach((el) => {
+  document.querySelectorAll('#schedule-windows .open-days-grid input[type="checkbox"]').forEach((el) => {
     el.addEventListener('change', syncHoursLabelFromForm);
   });
 
@@ -3418,14 +3433,13 @@ function initSettings() {
       instagram: document.getElementById('set-instagram').value.trim(),
       instagramUser: document.getElementById('set-instagram-user').value.trim(),
       address: document.getElementById('set-address').value.trim(),
+      storeSchedule: readScheduleFromForm(),
       hours: document.getElementById('set-hours').value.trim() || Storage.buildStoreHoursLabel({
-        openTime: document.getElementById('set-open-time').value,
-        closeTime: document.getElementById('set-close-time').value,
-        openDays: readOpenDaysFromForm(),
+        storeSchedule: readScheduleFromForm(),
       }),
-      openTime: document.getElementById('set-open-time').value || '19:30',
-      closeTime: document.getElementById('set-close-time').value || '22:00',
-      openDays: readOpenDaysFromForm(),
+      openTime: readScheduleFromForm()[0]?.open || '19:30',
+      closeTime: readScheduleFromForm()[0]?.close || '22:00',
+      openDays: [...new Set(readScheduleFromForm().flatMap((w) => w.days || []))],
       storeStatus: Storage.getSettings()?.storeStatus || 'auto',
       deliveryFee,
       deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',

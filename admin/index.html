@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=5">
+  <link rel="stylesheet" href="admin.css?v=6">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -469,31 +469,52 @@
 
           <div class="settings-block">
             <h4 class="settings-block__title">Horário de funcionamento</h4>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="set-open-time">Abre às</label>
-                <input type="time" id="set-open-time" value="19:30">
+            <p class="form-hint" style="margin-top:0">No <strong>Automático</strong>, a loja abre só nestas faixas. Seg e Ter ficam fechados.</p>
+
+            <div class="schedule-windows" id="schedule-windows">
+              <div class="schedule-window" data-window="0">
+                <strong class="schedule-window__title">Quarta a Sexta · rota noturna</strong>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="set-sched-0-open">Abre às</label>
+                    <input type="time" id="set-sched-0-open" value="19:30">
+                  </div>
+                  <div class="form-group">
+                    <label for="set-sched-0-close">Fecha às</label>
+                    <input type="time" id="set-sched-0-close" value="22:00">
+                  </div>
+                </div>
+                <div class="open-days-grid" data-sched-days="0">
+                  <label class="checkbox-label"><input type="checkbox" value="3" checked> Qua</label>
+                  <label class="checkbox-label"><input type="checkbox" value="4" checked> Qui</label>
+                  <label class="checkbox-label"><input type="checkbox" value="5" checked> Sex</label>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="set-close-time">Fecha às</label>
-                <input type="time" id="set-close-time" value="22:00">
+
+              <div class="schedule-window" data-window="1">
+                <strong class="schedule-window__title">Sábado e Domingo</strong>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="set-sched-1-open">Abre às</label>
+                    <input type="time" id="set-sched-1-open" value="12:00">
+                  </div>
+                  <div class="form-group">
+                    <label for="set-sched-1-close">Fecha às</label>
+                    <input type="time" id="set-sched-1-close" value="18:00">
+                  </div>
+                </div>
+                <div class="open-days-grid" data-sched-days="1">
+                  <label class="checkbox-label"><input type="checkbox" value="6" checked> Sáb</label>
+                  <label class="checkbox-label"><input type="checkbox" value="0" checked> Dom</label>
+                </div>
               </div>
             </div>
-            <div class="form-group">
-              <label>Dias da semana</label>
-              <div class="open-days-grid" id="set-open-days">
-                <label class="checkbox-label"><input type="checkbox" value="0"> Dom</label>
-                <label class="checkbox-label"><input type="checkbox" value="1" checked> Seg</label>
-                <label class="checkbox-label"><input type="checkbox" value="2" checked> Ter</label>
-                <label class="checkbox-label"><input type="checkbox" value="3" checked> Qua</label>
-                <label class="checkbox-label"><input type="checkbox" value="4" checked> Qui</label>
-                <label class="checkbox-label"><input type="checkbox" value="5" checked> Sex</label>
-                <label class="checkbox-label"><input type="checkbox" value="6" checked> Sáb</label>
-              </div>
-            </div>
-            <div class="form-group">
+
+            <p class="fin-note" style="margin-top:0.75rem"><i class="fas fa-moon"></i> <strong>Seg e Ter:</strong> fechados · Tarde sob encomenda com 1 dia de antecedência (Qua–Sex).</p>
+
+            <div class="form-group" style="margin-top:1rem">
               <label for="set-hours">Texto exibido no site</label>
-              <input type="text" id="set-hours" placeholder="Ex: Seg a Sáb · 19h30 às 22h">
+              <input type="text" id="set-hours" placeholder="Ex: Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h">
               <small class="form-hint">Aparece na seção Contato e no rodapé do site.</small>
             </div>
           </div>
@@ -620,9 +641,9 @@
   <script src="../js/pipoca-config.js?v=1"></script>
   <script src="../js/default-data.js?v=3"></script>
   <script src="../js/product-photos.js?v=2"></script>
-  <script src="../js/storage.js?v=13"></script>
+  <script src="../js/storage.js?v=14"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=9"></script>
+  <script src="admin.js?v=10"></script>
 </body>
 </html>
 

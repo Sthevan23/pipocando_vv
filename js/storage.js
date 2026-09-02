@@ -51,11 +51,15 @@ const Storage = (() => {
         facebook: '',
         email: '',
         address: '',
-        hours: '',
+        hours: 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h',
         storeStatus: 'auto',
         openTime: '19:30',
         closeTime: '22:00',
-        openDays: [1, 2, 3, 4, 5, 6],
+        openDays: [0, 3, 4, 5, 6],
+        storeSchedule: [
+          { days: [3, 4, 5], open: '19:30', close: '22:00' },
+          { days: [0, 6], open: '12:00', close: '18:00' },
+        ],
         followers: '',
         posts: '',
         mapEmbed: '',
@@ -685,13 +689,41 @@ const Storage = (() => {
       || /(domingo|segunda|terça|quarta|quinta|sexta|sábado|dom|seg|ter|qua|qui|sex|sáb)/i.test(t);
   }
 
+  function normalizeStoreSchedule(schedule, fallbackSettings = {}) {
+    if (Array.isArray(schedule) && schedule.length) {
+      const windows = schedule.map((win) => {
+        const days = normalizeOpenDays(win?.days || []);
+        const open = String(win?.open || win?.openTime || '19:30').slice(0, 5);
+        const close = String(win?.close || win?.closeTime || '22:00').slice(0, 5);
+        if (!days.length || parseTimeToMinutes(open) === null || parseTimeToMinutes(close) === null) return null;
+        return { days, open, close };
+      }).filter(Boolean);
+      if (windows.length) return windows;
+    }
+    // Sem agenda salva → horário do flyer Pipocando VV
+    return defaultPipocaSchedule();
+  }
+
+  function defaultPipocaSchedule() {
+    return [
+      { days: [3, 4, 5], open: '19:30', close: '22:00' },
+      { days: [0, 6], open: '12:00', close: '18:00' },
+    ];
+  }
+
+  function defaultPipocaHoursText() {
+    return 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h';
+  }
+
   function normalizeStoreSettings(settings) {
     const base = { ...emptyStore().settings, ...(settings || {}) };
     base.storeStatus = base.storeStatus || 'auto';
-    base.openTime = base.openTime || '19:30';
-    base.closeTime = base.closeTime || '22:00';
-    base.openDays = normalizeOpenDays(base.openDays);
-    if (!looksLikeStoreHoursText(base.hours)) {
+    base.storeSchedule = normalizeStoreSchedule(base.storeSchedule, base);
+    const allDays = [...new Set(base.storeSchedule.flatMap((w) => w.days))].sort((a, b) => a - b);
+    base.openDays = allDays.length ? allDays : normalizeOpenDays(base.openDays);
+    base.openTime = base.storeSchedule[0]?.open || base.openTime || '19:30';
+    base.closeTime = base.storeSchedule[0]?.close || base.closeTime || '22:00';
+    if (!looksLikeStoreHoursText(base.hours) || /Seg a Sáb · 19h30/i.test(String(base.hours || ''))) {
       base.hours = buildStoreHoursLabel(base);
     }
     return base;
@@ -700,9 +732,9 @@ const Storage = (() => {
   function normalizeOpenDays(days) {
     if (Array.isArray(days)) {
       const out = [...new Set(days.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
-      return out.length ? out : [1, 2, 3, 4, 5, 6];
+      return out;
     }
-    return normalizeOpenDays(String(days ?? '1,2,3,4,5,6').split(',').map((d) => parseInt(d.trim(), 10)));
+    return normalizeOpenDays(String(days ?? '').split(',').map((d) => parseInt(d.trim(), 10)));
   }
 
   function parseTimeToMinutes(value) {
@@ -718,29 +750,59 @@ const Storage = (() => {
     return `${Number(m[1])}h${m[2]}`;
   }
 
+  function formatDayRangeLabel(days) {
+    const sorted = normalizeOpenDays(days);
+    if (!sorted.length) return '';
+    const names = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const full = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    if (sorted.length === 1) return full[sorted[0]];
+    const isContiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1)
+      || (JSON.stringify(sorted) === JSON.stringify([0, 6]));
+    if (JSON.stringify(sorted) === JSON.stringify([3, 4, 5])) return 'Qua a Sex';
+    if (JSON.stringify(sorted) === JSON.stringify([0, 6])) return 'Sáb e Dom';
+    if (JSON.stringify(sorted) === JSON.stringify([1, 2])) return 'Seg e Ter';
+    if (isContiguous && sorted[0] === 1 && sorted[sorted.length - 1] === 6) return 'Seg a Sáb';
+    if (sorted.length === 7) return 'Domingo a domingo';
+    return sorted.map((d) => names[d]).join(', ');
+  }
+
   function buildStoreHoursLabel(settings) {
     const s = settings || getSettings();
-    const open = s.openTime || '19:30';
-    const close = s.closeTime || '22:00';
-    const days = normalizeOpenDays(s.openDays);
+    const schedule = normalizeStoreSchedule(s.storeSchedule, s);
+    if (schedule.length > 1 || (schedule.length === 1 && ![1, 2].every((d) => schedule[0].days.includes(d)))) {
+      const parts = [];
+      const openDays = new Set(schedule.flatMap((w) => w.days));
+      if (!openDays.has(1) && !openDays.has(2)) parts.push('Seg e Ter: fechados');
+      schedule.forEach((win) => {
+        parts.push(`${formatDayRangeLabel(win.days)}: ${formatTimeLabel(win.open)}–${formatTimeLabel(win.close)}`);
+      });
+      return parts.join(' · ');
+    }
+    const open = schedule[0]?.open || s.openTime || '19:30';
+    const close = schedule[0]?.close || s.closeTime || '22:00';
+    const days = schedule[0]?.days || normalizeOpenDays(s.openDays);
     const monSat = [1, 2, 3, 4, 5, 6].every((d) => days.includes(d)) && !days.includes(0);
     const allDays = [0, 1, 2, 3, 4, 5, 6].every((d) => days.includes(d));
     if (monSat) return `Seg a Sáb · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
     if (allDays) return `Domingo a domingo · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
-    const names = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    return `${days.map((d) => names[d]).join(', ')} · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
+    return `${formatDayRangeLabel(days)} · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
   }
 
-  function isStoreOpenBySchedule(settings, date = new Date()) {
-    const s = settings || getSettings();
-    const days = normalizeOpenDays(s.openDays);
+  function isWithinWindow(win, date = new Date()) {
+    const days = normalizeOpenDays(win?.days || []);
     if (days.length && !days.includes(date.getDay())) return false;
-    const open = parseTimeToMinutes(s.openTime || '19:30');
-    const close = parseTimeToMinutes(s.closeTime || '22:00');
+    const open = parseTimeToMinutes(win?.open || '19:30');
+    const close = parseTimeToMinutes(win?.close || '22:00');
     if (open === null || close === null) return true;
     const now = date.getHours() * 60 + date.getMinutes();
     if (close > open) return now >= open && now < close;
     return now >= open || now < close;
+  }
+
+  function isStoreOpenBySchedule(settings, date = new Date()) {
+    const s = settings || getSettings();
+    const schedule = normalizeStoreSchedule(s.storeSchedule, s);
+    return schedule.some((win) => isWithinWindow(win, date));
   }
 
   function isStoreOpen(settings) {
@@ -1708,6 +1770,7 @@ const Storage = (() => {
     getSettings, saveSettings, saveSettingsAsync,
     normalizeOpenDays, buildStoreHoursLabel, isStoreOpen, isStoreOpenBySchedule,
     storeClosedMessage, getStoreStatusLabel,
+    defaultPipocaSchedule, defaultPipocaHoursText,
     getInventoryItems, saveInventoryItemAsync, deleteInventoryItemAsync, inventoryUnitLabel,
     getProducts, saveProducts, saveProductsAsync, setProductActiveAsync, publishCatalogAsync,
     getCategories, saveCategories,

@@ -49,7 +49,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     address: 'Rua Burarama, 168, Cobilandia — Vila Velha, ES',
 
-    hours: 'Seg a Sáb · 19h30 às 22h',
+    hours: 'Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h',
 
     storeStatus: 'auto',
 
@@ -57,7 +57,12 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     closeTime: '22:00',
 
-    openDays: [1, 2, 3, 4, 5, 6],
+    openDays: [0, 3, 4, 5, 6],
+
+    storeSchedule: [
+      { days: [3, 4, 5], open: '19:30', close: '22:00' },
+      { days: [0, 6], open: '12:00', close: '18:00' },
+    ],
 
     deliveryFee: 5,
 
