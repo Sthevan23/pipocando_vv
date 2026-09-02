@@ -52,6 +52,10 @@ const Storage = (() => {
         email: '',
         address: '',
         hours: '',
+        storeStatus: 'auto',
+        openTime: '19:30',
+        closeTime: '22:00',
+        openDays: [1, 2, 3, 4, 5, 6],
         followers: '',
         posts: '',
         mapEmbed: '',
@@ -67,6 +71,7 @@ const Storage = (() => {
       orders: [],
       finance: [],
       coupons: [],
+      inventoryItems: [],
       reviews: [],
       faq: [],
       gallery: [],
@@ -668,11 +673,272 @@ const Storage = (() => {
     return API;
   }
 
-  function getSettings() { return getAll().settings; }
+  function getSettings() {
+    return normalizeStoreSettings(getAll().settings);
+  }
+
+  function looksLikeStoreHoursText(text) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    if (/whatsapp/i.test(t) && !/\d{1,2}(:\d{2}|h)/i.test(t)) return false;
+    return /\d{1,2}(:\d{2}|h)/i.test(t)
+      || /(domingo|segunda|terça|quarta|quinta|sexta|sábado|dom|seg|ter|qua|qui|sex|sáb)/i.test(t);
+  }
+
+  function normalizeStoreSettings(settings) {
+    const base = { ...emptyStore().settings, ...(settings || {}) };
+    base.storeStatus = base.storeStatus || 'auto';
+    base.openTime = base.openTime || '19:30';
+    base.closeTime = base.closeTime || '22:00';
+    base.openDays = normalizeOpenDays(base.openDays);
+    if (!looksLikeStoreHoursText(base.hours)) {
+      base.hours = buildStoreHoursLabel(base);
+    }
+    return base;
+  }
+
+  function normalizeOpenDays(days) {
+    if (Array.isArray(days)) {
+      const out = [...new Set(days.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+      return out.length ? out : [1, 2, 3, 4, 5, 6];
+    }
+    return normalizeOpenDays(String(days ?? '1,2,3,4,5,6').split(',').map((d) => parseInt(d.trim(), 10)));
+  }
+
+  function parseTimeToMinutes(value) {
+    const m = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function formatTimeLabel(value) {
+    const m = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return value || '';
+    if (m[2] === '00') return `${Number(m[1])}h`;
+    return `${Number(m[1])}h${m[2]}`;
+  }
+
+  function buildStoreHoursLabel(settings) {
+    const s = settings || getSettings();
+    const open = s.openTime || '19:30';
+    const close = s.closeTime || '22:00';
+    const days = normalizeOpenDays(s.openDays);
+    const monSat = [1, 2, 3, 4, 5, 6].every((d) => days.includes(d)) && !days.includes(0);
+    const allDays = [0, 1, 2, 3, 4, 5, 6].every((d) => days.includes(d));
+    if (monSat) return `Seg a Sáb · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
+    if (allDays) return `Domingo a domingo · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
+    const names = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    return `${days.map((d) => names[d]).join(', ')} · ${formatTimeLabel(open)} às ${formatTimeLabel(close)}`;
+  }
+
+  function isStoreOpenBySchedule(settings, date = new Date()) {
+    const s = settings || getSettings();
+    const days = normalizeOpenDays(s.openDays);
+    if (days.length && !days.includes(date.getDay())) return false;
+    const open = parseTimeToMinutes(s.openTime || '19:30');
+    const close = parseTimeToMinutes(s.closeTime || '22:00');
+    if (open === null || close === null) return true;
+    const now = date.getHours() * 60 + date.getMinutes();
+    if (close > open) return now >= open && now < close;
+    return now >= open || now < close;
+  }
+
+  function isStoreOpen(settings) {
+    const s = settings || getSettings();
+    const status = String(s.storeStatus || 'auto');
+    if (status === 'open') return true;
+    if (status === 'closed') return false;
+    return isStoreOpenBySchedule(s);
+  }
+
+  function storeClosedMessage(settings) {
+    const s = normalizeStoreSettings(settings || getSettings());
+    const hours = buildStoreHoursLabel(s);
+    if (String(s.storeStatus || 'auto') === 'closed') {
+      return `A loja está fechada no momento. Horário: ${hours}.`;
+    }
+    return `Estamos fechados agora. Horário de atendimento: ${hours}.`;
+  }
+
+  function getStoreStatusLabel(settings) {
+    const s = settings || getSettings();
+    if (String(s.storeStatus) === 'open') return 'Loja aberta (manual)';
+    if (String(s.storeStatus) === 'closed') return 'Loja fechada (manual)';
+    return isStoreOpenBySchedule(s) ? 'Aberta agora (horário)' : 'Fechada agora (horário)';
+  }
+
   function saveSettings(settings) {
     const data = getAll();
-    data.settings = { ...data.settings, ...settings };
+    data.settings = normalizeStoreSettings({ ...data.settings, ...settings });
     save(data);
+  }
+
+  async function saveSettingsAsync(settingsPatch) {
+    const data = getAll();
+    data.settings = normalizeStoreSettings({ ...data.settings, ...settingsPatch });
+    setMemory(data);
+    notifyUpdated();
+
+    const password = getAdminPassword();
+    if (!password) {
+      return { ok: false, error: 'Faça login de novo no painel.' };
+    }
+
+    try {
+      clearApiBreaker();
+      const res = await apiFetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': password,
+        },
+        body: JSON.stringify({
+          action: 'save_settings',
+          settings: data.settings,
+        }),
+      }, 15000, { force: true });
+
+      let result = {};
+      try {
+        result = await res.json();
+      } catch {
+        result = {};
+      }
+
+      if (res.ok && result.ok !== false) {
+        lastRemoteJson = JSON.stringify(data);
+        cloudEnabled = true;
+        try { await publishCatalogAsync(); } catch { /* ignore */ }
+        return { ok: true };
+      }
+
+      const msg = result.error
+        || result.detail
+        || (res.status === 401 ? 'Senha inválida. Faça login de novo.' : '')
+        || (res.status === 503 ? 'Servidor ocupado. Aguarde 1 minuto e tente de novo.' : '')
+        || 'Não sincronizou com o servidor.';
+
+      console.warn('[Pipocando] Falha ao salvar configurações', res.status, result);
+      return { ok: false, error: msg };
+    } catch (err) {
+      console.warn('[Pipocando] Erro ao salvar configurações', err);
+      return { ok: false, error: 'Sem conexão com o servidor. Verifique a internet e tente de novo.' };
+    }
+  }
+
+  function getInventoryItems() {
+    return (getAll().inventoryItems || []).slice().sort((a, b) => {
+      const diff = sortOrderValue(a) - sortOrderValue(b);
+      if (diff !== 0) return diff;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+    });
+  }
+
+  function inventoryUnitLabel(unit) {
+    const map = { un: 'un', cx: 'cx', kg: 'kg', g: 'g', l: 'L', ml: 'ml', pct: 'pct' };
+    return map[String(unit || 'un').toLowerCase()] || 'un';
+  }
+
+  function replaceInventoryItemInMemory(item, { remove = false } = {}) {
+    const data = getAll();
+    const id = String(item?.id || '');
+    const list = Array.isArray(data.inventoryItems) ? data.inventoryItems : [];
+    if (remove || !id) {
+      data.inventoryItems = list.filter((row) => String(row.id) !== id);
+    } else {
+      const idx = list.findIndex((row) => String(row.id) === id);
+      if (idx >= 0) list[idx] = { ...list[idx], ...item };
+      else list.push(item);
+      data.inventoryItems = list;
+    }
+    setMemory(data);
+    lastRemoteJson = JSON.stringify(data);
+    notifyUpdated();
+  }
+
+  async function saveInventoryItemAsync(item) {
+    const password = getAdminPassword();
+    if (!password) {
+      return { ok: false, error: 'Faça login de novo no painel.' };
+    }
+    if (!item || !String(item.name || '').trim()) {
+      return { ok: false, error: 'Informe o nome do item.' };
+    }
+
+    try {
+      clearApiBreaker();
+      const res = await apiFetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': password,
+        },
+        body: JSON.stringify({ action: 'save_inventory_item', item }),
+      }, 15000, { force: true });
+
+      let result = {};
+      try {
+        result = await res.json();
+      } catch {
+        result = {};
+      }
+
+      if (res.ok && result.ok !== false && result.item) {
+        replaceInventoryItemInMemory(result.item);
+        cloudEnabled = true;
+        return { ok: true, item: result.item };
+      }
+
+      const msg = result.error
+        || result.detail
+        || (res.status === 401 ? 'Senha inválida. Faça login de novo.' : '')
+        || 'Não sincronizou com o servidor.';
+      return { ok: false, error: msg };
+    } catch (err) {
+      console.warn('[Pipocando] Erro ao salvar insumo', err);
+      return { ok: false, error: 'Sem conexão com o servidor.' };
+    }
+  }
+
+  async function deleteInventoryItemAsync(itemId) {
+    const password = getAdminPassword();
+    const id = String(itemId || '').trim();
+    if (!password) {
+      return { ok: false, error: 'Faça login de novo no painel.' };
+    }
+    if (!id) {
+      return { ok: false, error: 'Item inválido.' };
+    }
+
+    try {
+      clearApiBreaker();
+      const res = await apiFetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': password,
+        },
+        body: JSON.stringify({ action: 'delete_inventory_item', id }),
+      }, 12000, { force: true });
+
+      let result = {};
+      try {
+        result = await res.json();
+      } catch {
+        result = {};
+      }
+
+      if (res.ok && result.ok !== false) {
+        replaceInventoryItemInMemory({ id }, { remove: true });
+        cloudEnabled = true;
+        return { ok: true };
+      }
+
+      const msg = result.error || result.detail || 'Não sincronizou com o servidor.';
+      return { ok: false, error: msg };
+    } catch (err) {
+      return { ok: false, error: 'Sem conexão com o servidor.' };
+    }
   }
   function getProducts() { return sortProductsList(getAll().products); }
 
@@ -1439,7 +1705,10 @@ const Storage = (() => {
 
   return {
     init, getAll, save,
-    getSettings, saveSettings,
+    getSettings, saveSettings, saveSettingsAsync,
+    normalizeOpenDays, buildStoreHoursLabel, isStoreOpen, isStoreOpenBySchedule,
+    storeClosedMessage, getStoreStatusLabel,
+    getInventoryItems, saveInventoryItemAsync, deleteInventoryItemAsync, inventoryUnitLabel,
     getProducts, saveProducts, saveProductsAsync, setProductActiveAsync, publishCatalogAsync,
     getCategories, saveCategories,
     getClients, saveClients,

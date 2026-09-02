@@ -475,6 +475,10 @@ function resolveLiveCoupon(coupon) {
 }
 
 function addToCart(item) {
+  if (typeof Storage !== 'undefined' && Storage.isStoreOpen && !Storage.isStoreOpen()) {
+    showCartFeedback(Storage.storeClosedMessage?.() || 'Loja fechada no momento.');
+    return false;
+  }
   if (Cart) {
     Cart.addItem(item);
     cartItems = Cart.getItems();
@@ -875,6 +879,33 @@ function applyBrand() {
   if (ogUrl) ogUrl.setAttribute('content', siteUrl);
 
   return b;
+}
+
+function applyStoreStatus() {
+  if (typeof Storage === 'undefined' || !Storage.isStoreOpen) return;
+  const open = Storage.isStoreOpen();
+  const banner = document.getElementById('store-status-banner');
+  const text = document.getElementById('store-status-banner-text');
+  document.body?.classList.toggle('store-is-closed', !open);
+  document.body?.classList.toggle('store-banner-visible', !open);
+  if (banner && text) {
+    if (!open) {
+      banner.hidden = false;
+      const hours = Storage.buildStoreHoursLabel?.(Storage.getSettings()) || 'Seg a Sáb · 19h30 às 22h';
+      text.innerHTML = `<strong>Estamos fechados agora.</strong> <span class="store-status-banner__hours">Horário: ${hours}</span>`;
+    } else {
+      banner.hidden = true;
+    }
+  }
+  document.querySelectorAll('[data-requires-store-open]').forEach((el) => {
+    el.disabled = !open;
+    el.setAttribute('aria-disabled', open ? 'false' : 'true');
+  });
+  const checkoutBtn = document.getElementById('cart-checkout-btn');
+  if (checkoutBtn) {
+    checkoutBtn.disabled = !open;
+    checkoutBtn.setAttribute('aria-disabled', open ? 'false' : 'true');
+  }
 }
 
 function applySettings() {
@@ -2397,6 +2428,13 @@ function closeCart() {
 async function checkoutCart() {
   const error = document.getElementById('cart-error');
   const btn = document.getElementById('cart-checkout-btn');
+  if (typeof Storage !== 'undefined' && Storage.isStoreOpen && !Storage.isStoreOpen()) {
+    if (error) {
+      error.textContent = Storage.storeClosedMessage?.() || 'Loja fechada no momento.';
+      error.hidden = false;
+    }
+    return;
+  }
   const nome = document.getElementById('cart-nome')?.value.trim() || '';
   const sobrenome = document.getElementById('cart-sobrenome')?.value.trim() || '';
   const address = document.getElementById('cart-address')?.value.trim() || '';
@@ -3102,6 +3140,7 @@ function initParallax() {
 
 function mountSite({ withInit = false } = {}) {
   applySettings();
+  applyStoreStatus();
   renderMarquee();
   renderPipocasSection();
   renderFilters();

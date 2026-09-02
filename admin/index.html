@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=4">
+  <link rel="stylesheet" href="admin.css?v=5">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -28,6 +28,7 @@
       <a href="#" class="sidebar__link active" data-page="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a>
       <a href="#" class="sidebar__link" data-page="pedidos"><i class="fas fa-shopping-bag"></i> Pedidos</a>
       <a href="#" class="sidebar__link" data-page="produtos"><i class="fas fa-cookie-bite"></i> Produtos</a>
+      <a href="#" class="sidebar__link" data-page="estoque"><i class="fas fa-boxes-stacked"></i> Estoque <span class="sidebar__badge" id="sidebar-stock-badge" hidden>0</span></a>
       <a href="#" class="sidebar__link" data-page="categorias"><i class="fas fa-tags"></i> Categorias</a>
       <a href="#" class="sidebar__link" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
       <a href="#" class="sidebar__link" data-page="financeiro"><i class="fas fa-chart-line"></i> Financeiro</a>
@@ -177,6 +178,34 @@
             <tbody></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- Estoque (insumos) -->
+    <section class="admin-page" id="page-estoque">
+      <p class="fin-note"><i class="fas fa-carrot"></i> Controle de <strong>insumos</strong> da cozinha — ex.: chocolate, leite condensado, embalagens. Use para saber o que precisa comprar.</p>
+      <div class="stock-summary" id="inventory-summary"></div>
+      <div class="page-actions stock-toolbar">
+        <label class="stock-filter">
+          <span>Filtrar</span>
+          <select id="inventory-filter" class="form-control">
+            <option value="all">Todos os itens</option>
+            <option value="low">Estoque baixo</option>
+            <option value="out">Zerados</option>
+          </select>
+        </label>
+        <button type="button" class="btn btn--primary" id="btn-new-inventory-item"><i class="fas fa-plus"></i> Novo insumo</button>
+      </div>
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table" id="inventory-table">
+            <thead>
+              <tr><th>Item</th><th>Unidade</th><th>Quantidade</th><th>Alerta mín.</th><th>Situação</th><th>Ações</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="fin-empty" id="inventory-empty" hidden>Nenhum insumo cadastrado. Clique em Novo insumo.</p>
       </div>
     </section>
 
@@ -374,6 +403,22 @@
 
     <!-- Configurações -->
     <section class="admin-page" id="page-configuracoes">
+      <div class="card store-control-card">
+        <div class="card__header">
+          <h3>Status da loja</h3>
+          <span class="card__subtitle">Controle se o site aceita pedidos agora</span>
+        </div>
+        <div class="store-control">
+          <p class="store-control__status" id="store-status-preview">—</p>
+          <div class="store-control__actions">
+            <button type="button" class="btn btn--secondary" id="store-status-auto"><i class="fas fa-clock"></i> Automático</button>
+            <button type="button" class="btn btn--primary" id="store-status-open"><i class="fas fa-door-open"></i> Loja aberta</button>
+            <button type="button" class="btn btn--danger" id="store-status-closed"><i class="fas fa-door-closed"></i> Loja fechada</button>
+          </div>
+          <p class="store-control__hint">No automático, o site abre e fecha pelo horário configurado abaixo.</p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card__header"><h3>Configurações da Loja</h3></div>
         <form id="settings-form" class="settings-form">
@@ -421,11 +466,38 @@
             <label for="set-address">Endereço completo</label>
             <input type="text" id="set-address" placeholder="Rua, número, cidade, CEP">
           </div>
-          <div class="form-group">
-            <label for="set-hours">Horário de funcionamento</label>
-            <input type="text" id="set-hours" placeholder="Ex: Seg a Sáb · 19h30 às 22h">
-            <small class="form-hint">Aparece na seção Contato e no rodapé do site.</small>
+
+          <div class="settings-block">
+            <h4 class="settings-block__title">Horário de funcionamento</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="set-open-time">Abre às</label>
+                <input type="time" id="set-open-time" value="19:30">
+              </div>
+              <div class="form-group">
+                <label for="set-close-time">Fecha às</label>
+                <input type="time" id="set-close-time" value="22:00">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Dias da semana</label>
+              <div class="open-days-grid" id="set-open-days">
+                <label class="checkbox-label"><input type="checkbox" value="0"> Dom</label>
+                <label class="checkbox-label"><input type="checkbox" value="1" checked> Seg</label>
+                <label class="checkbox-label"><input type="checkbox" value="2" checked> Ter</label>
+                <label class="checkbox-label"><input type="checkbox" value="3" checked> Qua</label>
+                <label class="checkbox-label"><input type="checkbox" value="4" checked> Qui</label>
+                <label class="checkbox-label"><input type="checkbox" value="5" checked> Sex</label>
+                <label class="checkbox-label"><input type="checkbox" value="6" checked> Sáb</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="set-hours">Texto exibido no site</label>
+              <input type="text" id="set-hours" placeholder="Ex: Seg a Sáb · 19h30 às 22h">
+              <small class="form-hint">Aparece na seção Contato e no rodapé do site.</small>
+            </div>
           </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="set-delivery-fee">Frete base — Vila Velha / Cariacica (R$)</label>
@@ -546,11 +618,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="../js/brand-config.js?v=2"></script>
   <script src="../js/pipoca-config.js?v=1"></script>
-  <script src="../js/default-data.js?v=2"></script>
+  <script src="../js/default-data.js?v=3"></script>
   <script src="../js/product-photos.js?v=2"></script>
-  <script src="../js/storage.js?v=12"></script>
+  <script src="../js/storage.js?v=13"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=8"></script>
+  <script src="admin.js?v=9"></script>
 </body>
 </html>
 

@@ -211,8 +211,16 @@ if ($method === 'POST') {
     json_out(['ok' => true, 'data' => $stored]);
   }
 
-  // Pedido / fidelidade / ordem do cardápio — conexão leve (sem ALTER/schema pesado)
-  if ($actionName === 'loyalty_status' || $actionName === 'create_order' || $actionName === 'order_status' || $actionName === 'save_catalog_order') {
+  // Pedido / fidelidade / ordem / settings / estoque — conexão leve (sem ALTER/schema pesado)
+  if (
+    $actionName === 'loyalty_status'
+    || $actionName === 'create_order'
+    || $actionName === 'order_status'
+    || $actionName === 'save_catalog_order'
+    || $actionName === 'save_settings'
+    || $actionName === 'save_inventory_item'
+    || $actionName === 'delete_inventory_item'
+  ) {
     try {
       $pdo = aurora_db(false);
     } catch (Throwable $e) {
@@ -409,6 +417,66 @@ if ($method === 'POST') {
 
   // Salvamento completo (admin)
   if ($actionName !== '') {
+    // Atualiza só configurações (leve — não regrava o banco inteiro)
+    if ($actionName === 'save_settings') {
+      $auth = aurora_get_auth($pdo);
+      if ($password === '' || $auth['password'] === '' || !hash_equals($auth['password'], $password)) {
+        json_out(['error' => 'Senha inválida'], 401);
+      }
+      $settings = $body['settings'] ?? null;
+      if (!is_array($settings)) {
+        json_out(['error' => 'Configurações inválidas'], 400);
+      }
+      try {
+        aurora_save_settings_only($pdo, $settings);
+        $catalog = false;
+        try {
+          $catalog = aurora_write_public_catalog($pdo);
+        } catch (Throwable $e) {
+          $catalog = false;
+        }
+        json_out(['ok' => true, 'catalog' => (bool) $catalog, 'ts' => time()]);
+      } catch (Throwable $e) {
+        json_out(['error' => 'Falha ao salvar configurações', 'detail' => $e->getMessage()], 500);
+      }
+    }
+
+    if ($actionName === 'save_inventory_item') {
+      $auth = aurora_get_auth($pdo);
+      if ($password === '' || $auth['password'] === '' || !hash_equals($auth['password'], $password)) {
+        json_out(['error' => 'Senha inválida'], 401);
+      }
+      $item = $body['item'] ?? null;
+      if (!is_array($item)) {
+        json_out(['error' => 'Item inválido'], 400);
+      }
+      try {
+        $saved = aurora_save_one_inventory_item($pdo, $item);
+        json_out(['ok' => true, 'item' => $saved, 'ts' => time()]);
+      } catch (InvalidArgumentException $e) {
+        json_out(['error' => $e->getMessage()], 400);
+      } catch (Throwable $e) {
+        json_out(['error' => 'Falha ao salvar item', 'detail' => $e->getMessage()], 500);
+      }
+    }
+
+    if ($actionName === 'delete_inventory_item') {
+      $auth = aurora_get_auth($pdo);
+      if ($password === '' || $auth['password'] === '' || !hash_equals($auth['password'], $password)) {
+        json_out(['error' => 'Senha inválida'], 401);
+      }
+      $itemId = trim((string) ($body['id'] ?? $body['itemId'] ?? ''));
+      if ($itemId === '') {
+        json_out(['error' => 'Item inválido'], 400);
+      }
+      try {
+        aurora_delete_one_inventory_item($pdo, $itemId);
+        json_out(['ok' => true, 'id' => $itemId, 'ts' => time()]);
+      } catch (Throwable $e) {
+        json_out(['error' => 'Falha ao excluir item', 'detail' => $e->getMessage()], 500);
+      }
+    }
+
     json_out(['error' => 'Ação não reconhecida'], 400);
   }
 

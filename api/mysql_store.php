@@ -333,6 +333,10 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     'sobreText2' => $settingsRow['sobre_text2'] ?? '',
     'deliveryFee' => isset($settingsRow['delivery_fee']) ? (float) $settingsRow['delivery_fee'] : 5,
     'deliveryNote' => $settingsRow['delivery_note'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+    'storeStatus' => (string) ($settingsRow['store_status'] ?? 'auto'),
+    'openTime' => (string) ($settingsRow['open_time'] ?? '19:30'),
+    'closeTime' => (string) ($settingsRow['close_time'] ?? '22:00'),
+    'openDays' => aurora_parse_open_days($settingsRow['open_days'] ?? '1,2,3,4,5,6'),
   ];
   pipocando_merge_brand_into_settings($settings);
 
@@ -443,6 +447,8 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     }
   }
 
+  $inventoryItems = aurora_load_inventory_items($pdo);
+
   return [
     'version' => (int) ($settingsRow['data_version'] ?? 16),
     'settings' => $settings,
@@ -459,6 +465,7 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     'gallery' => $gallery,
     'finance' => $finance,
     'coupons' => $coupons,
+    'inventoryItems' => $inventoryItems,
   ];
 }
 
@@ -710,9 +717,9 @@ function aurora_save_all(PDO $pdo, array $payload): void {
       'INSERT INTO settings (
         id, name, tagline, logo, banner, sobre_image, whatsapp, instagram, instagram_user,
         facebook, email, address, hours, followers, posts, map_embed, hero_badge, hero_story,
-        sobre_text1, sobre_text2, delivery_fee, delivery_note, data_version
+        sobre_text1, sobre_text2, delivery_fee, delivery_note, store_status, open_time, close_time, open_days, data_version
       ) VALUES (
-        1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
       ON DUPLICATE KEY UPDATE
         name=VALUES(name), tagline=VALUES(tagline), logo=VALUES(logo), banner=VALUES(banner),
@@ -722,8 +729,10 @@ function aurora_save_all(PDO $pdo, array $payload): void {
         map_embed=VALUES(map_embed), hero_badge=VALUES(hero_badge), hero_story=VALUES(hero_story),
         sobre_text1=VALUES(sobre_text1), sobre_text2=VALUES(sobre_text2),
         delivery_fee=VALUES(delivery_fee), delivery_note=VALUES(delivery_note),
-        data_version=VALUES(data_version)'
+        store_status=VALUES(store_status), open_time=VALUES(open_time), close_time=VALUES(close_time),
+        open_days=VALUES(open_days), data_version=VALUES(data_version)'
     );
+    aurora_ensure_store_settings_columns($pdo);
     $deliveryFee = isset($s['deliveryFee']) ? (float) $s['deliveryFee'] : 5;
     if ($deliveryFee < 0) {
       $deliveryFee = 0;
@@ -754,6 +763,10 @@ function aurora_save_all(PDO $pdo, array $payload): void {
       $s['sobreText2'] ?? '',
       $deliveryFee,
       $deliveryNote,
+      in_array(($s['storeStatus'] ?? 'auto'), ['auto', 'open', 'closed'], true) ? ($s['storeStatus'] ?? 'auto') : 'auto',
+      preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['openTime'] ?? '')) ? $s['openTime'] : '19:30',
+      preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? $s['closeTime'] : '22:00',
+      aurora_format_open_days($s['openDays'] ?? [1, 2, 3, 4, 5, 6]),
       $version,
     ]);
 
@@ -1004,6 +1017,32 @@ function aurora_save_all(PDO $pdo, array $payload): void {
           (float) ($c['minOrder'] ?? 0),
           !empty($c['active']) ? 1 : 0,
           $c['label'] ?? '',
+        ]);
+      }
+    }
+
+    // Insumos / itens de estoque
+    aurora_ensure_inventory_items_table($pdo);
+    if (aurora_table_exists($pdo, 'inventory_items')) {
+      $pdo->exec('DELETE FROM inventory_items');
+      $invStmt = $pdo->prepare(
+        'INSERT INTO inventory_items (id, name, unit, stock, min_stock, notes, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+      foreach (array_values($payload['inventoryItems'] ?? []) as $i => $item) {
+        if (!is_array($item)) continue;
+        $name = trim((string) ($item['name'] ?? ''));
+        if ($name === '') continue;
+        $invStmt->execute([
+          $item['id'] ?? uniqid('inv', true),
+          $name,
+          aurora_normalize_inventory_unit($item['unit'] ?? 'un'),
+          aurora_normalize_inventory_qty($item['stock'] ?? 0),
+          isset($item['minStock']) && $item['minStock'] !== '' && $item['minStock'] !== null
+            ? aurora_normalize_inventory_qty($item['minStock'])
+            : null,
+          trim((string) ($item['notes'] ?? '')) ?: null,
+          (int) ($item['sortOrder'] ?? $i),
         ]);
       }
     }
@@ -1689,4 +1728,240 @@ function aurora_loyalty_stats(PDO $pdo, string $phone): array {
     'eligible' => $eligible,
     'gift' => $gift,
   ];
+}
+
+function aurora_parse_open_days($value): array {
+  if (is_array($value)) {
+    $days = array_map('intval', $value);
+  } else {
+    $days = array_map('intval', explode(',', (string) $value));
+  }
+  $days = array_values(array_unique(array_filter($days, static fn($d) => $d >= 0 && $d <= 6)));
+  sort($days);
+  return $days ?: [1, 2, 3, 4, 5, 6];
+}
+
+function aurora_format_open_days($value): string {
+  return implode(',', aurora_parse_open_days($value));
+}
+
+function aurora_ensure_store_settings_columns(PDO $pdo): void {
+  aurora_ensure_column($pdo, 'settings', 'delivery_fee', "DECIMAL(10,2) NOT NULL DEFAULT 5.00");
+  aurora_ensure_column($pdo, 'settings', 'delivery_note', "VARCHAR(255) NULL DEFAULT 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'");
+  aurora_ensure_column($pdo, 'settings', 'store_status', "VARCHAR(20) NOT NULL DEFAULT 'auto'");
+  aurora_ensure_column($pdo, 'settings', 'open_time', "VARCHAR(5) NOT NULL DEFAULT '19:30'");
+  aurora_ensure_column($pdo, 'settings', 'close_time', "VARCHAR(5) NOT NULL DEFAULT '22:00'");
+  aurora_ensure_column($pdo, 'settings', 'open_days', "VARCHAR(30) NOT NULL DEFAULT '1,2,3,4,5,6'");
+}
+
+function aurora_save_settings_only(PDO $pdo, array $settings): void {
+  if (!aurora_db_ready($pdo)) {
+    throw new RuntimeException('Tabelas MySQL não encontradas. Importe api/pipocando_mysql.sql no phpMyAdmin.');
+  }
+
+  aurora_ensure_store_settings_columns($pdo);
+
+  $row = $pdo->query('SELECT * FROM settings WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+  $current = [
+    'name' => $row['name'] ?? '',
+    'tagline' => $row['tagline'] ?? '',
+    'logo' => $row['logo'] ?? '',
+    'banner' => $row['banner'] ?? '',
+    'sobreImage' => $row['sobre_image'] ?? '',
+    'whatsapp' => $row['whatsapp'] ?? '',
+    'instagram' => $row['instagram'] ?? '',
+    'instagramUser' => $row['instagram_user'] ?? '',
+    'facebook' => $row['facebook'] ?? '',
+    'email' => $row['email'] ?? '',
+    'address' => $row['address'] ?? '',
+    'hours' => $row['hours'] ?? '',
+    'followers' => $row['followers'] ?? '',
+    'posts' => $row['posts'] ?? '',
+    'mapEmbed' => $row['map_embed'] ?? '',
+    'heroBadge' => $row['hero_badge'] ?? '',
+    'heroStory' => aurora_json_decode_field($row['hero_story'] ?? null, []),
+    'sobreText1' => $row['sobre_text1'] ?? '',
+    'sobreText2' => $row['sobre_text2'] ?? '',
+    'deliveryFee' => isset($row['delivery_fee']) ? (float) $row['delivery_fee'] : 5,
+    'deliveryNote' => $row['delivery_note'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+    'storeStatus' => (string) ($row['store_status'] ?? 'auto'),
+    'openTime' => (string) ($row['open_time'] ?? '19:30'),
+    'closeTime' => (string) ($row['close_time'] ?? '22:00'),
+    'openDays' => aurora_parse_open_days($row['open_days'] ?? '1,2,3,4,5,6'),
+  ];
+  pipocando_merge_brand_into_settings($current);
+
+  $s = array_merge($current, $settings);
+  $heroStory = pipocando_pack_hero_story($s);
+  $deliveryFee = isset($s['deliveryFee']) ? (float) $s['deliveryFee'] : 5;
+  if ($deliveryFee < 0) $deliveryFee = 0;
+  $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'));
+  if ($deliveryNote === '') $deliveryNote = 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+
+  $stmt = $pdo->prepare(
+    'INSERT INTO settings (
+      id, name, tagline, logo, banner, sobre_image, whatsapp, instagram, instagram_user,
+      facebook, email, address, hours, followers, posts, map_embed, hero_badge, hero_story,
+      sobre_text1, sobre_text2, delivery_fee, delivery_note, store_status, open_time, close_time, open_days, data_version
+    ) VALUES (
+      1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    )
+    ON DUPLICATE KEY UPDATE
+      name=VALUES(name), tagline=VALUES(tagline), logo=VALUES(logo), banner=VALUES(banner),
+      sobre_image=VALUES(sobre_image), whatsapp=VALUES(whatsapp), instagram=VALUES(instagram),
+      instagram_user=VALUES(instagram_user), facebook=VALUES(facebook), email=VALUES(email),
+      address=VALUES(address), hours=VALUES(hours), followers=VALUES(followers), posts=VALUES(posts),
+      map_embed=VALUES(map_embed), hero_badge=VALUES(hero_badge), hero_story=VALUES(hero_story),
+      sobre_text1=VALUES(sobre_text1), sobre_text2=VALUES(sobre_text2),
+      delivery_fee=VALUES(delivery_fee), delivery_note=VALUES(delivery_note),
+      store_status=VALUES(store_status), open_time=VALUES(open_time), close_time=VALUES(close_time),
+      open_days=VALUES(open_days), data_version=VALUES(data_version)'
+  );
+  $stmt->execute([
+    $s['name'] ?? '',
+    $s['tagline'] ?? '',
+    $s['logo'] ?? '',
+    $s['banner'] ?? '',
+    $s['sobreImage'] ?? '',
+    $s['whatsapp'] ?? '',
+    $s['instagram'] ?? '',
+    $s['instagramUser'] ?? '',
+    $s['facebook'] ?? '',
+    $s['email'] ?? '',
+    $s['address'] ?? '',
+    $s['hours'] ?? '',
+    $s['followers'] ?? '',
+    $s['posts'] ?? '',
+    $s['mapEmbed'] ?? '',
+    $s['heroBadge'] ?? '',
+    $heroStory,
+    $s['sobreText1'] ?? '',
+    $s['sobreText2'] ?? '',
+    $deliveryFee,
+    $deliveryNote,
+    in_array(($s['storeStatus'] ?? 'auto'), ['auto', 'open', 'closed'], true) ? ($s['storeStatus'] ?? 'auto') : 'auto',
+    preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['openTime'] ?? '')) ? $s['openTime'] : '19:30',
+    preg_match('/^\d{1,2}:\d{2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? substr($s['closeTime'], 0, 5) : (
+      preg_match('/^\d{1,2}:\d{2}$/', (string) ($s['closeTime'] ?? '')) ? $s['closeTime'] : '22:00'
+    ),
+    aurora_format_open_days($s['openDays'] ?? [1, 2, 3, 4, 5, 6]),
+    (int) ($s['dataVersion'] ?? $row['data_version'] ?? 16),
+  ]);
+}
+
+function aurora_normalize_inventory_unit($unit): string {
+  $u = strtolower(trim((string) $unit));
+  $allowed = ['un', 'cx', 'kg', 'g', 'l', 'ml', 'pct', 'lt'];
+  if ($u === 'lt') $u = 'l';
+  if ($u === 'pacote') $u = 'pct';
+  if ($u === 'caixa') $u = 'cx';
+  return in_array($u, $allowed, true) ? $u : 'un';
+}
+
+function aurora_normalize_inventory_qty($value): float {
+  if ($value === null || $value === '') return 0.0;
+  if (!is_numeric($value)) return 0.0;
+  return max(0, round((float) $value, 2));
+}
+
+function aurora_load_inventory_items(PDO $pdo): array {
+  if (!aurora_table_exists($pdo, 'inventory_items')) {
+    return [];
+  }
+  $rows = $pdo->query(
+    'SELECT * FROM inventory_items ORDER BY sort_order ASC, name ASC'
+  )->fetchAll(PDO::FETCH_ASSOC);
+  $items = [];
+  foreach ($rows as $row) {
+    $item = [
+      'id' => (string) ($row['id'] ?? ''),
+      'name' => (string) ($row['name'] ?? ''),
+      'unit' => aurora_normalize_inventory_unit($row['unit'] ?? 'un'),
+      'stock' => aurora_normalize_inventory_qty($row['stock'] ?? 0),
+      'sortOrder' => (int) ($row['sort_order'] ?? 0),
+    ];
+    if ($row['min_stock'] !== null && $row['min_stock'] !== '') {
+      $item['minStock'] = aurora_normalize_inventory_qty($row['min_stock']);
+    }
+    $notes = trim((string) ($row['notes'] ?? ''));
+    if ($notes !== '') $item['notes'] = $notes;
+    $items[] = $item;
+  }
+  return $items;
+}
+
+function aurora_normalize_inventory_input(array $item): array {
+  $name = trim((string) ($item['name'] ?? ''));
+  $id = trim((string) ($item['id'] ?? ''));
+  if ($id === '') $id = 'inv_' . bin2hex(random_bytes(6));
+  $out = [
+    'id' => $id,
+    'name' => $name,
+    'unit' => aurora_normalize_inventory_unit($item['unit'] ?? 'un'),
+    'stock' => aurora_normalize_inventory_qty($item['stock'] ?? 0),
+    'sortOrder' => (int) ($item['sortOrder'] ?? 0),
+  ];
+  if (array_key_exists('minStock', $item) && $item['minStock'] !== '' && $item['minStock'] !== null) {
+    $out['minStock'] = aurora_normalize_inventory_qty($item['minStock']);
+  }
+  $notes = trim((string) ($item['notes'] ?? ''));
+  if ($notes !== '') $out['notes'] = $notes;
+  return $out;
+}
+
+function aurora_save_one_inventory_item(PDO $pdo, array $payload): array {
+  if (!aurora_db_ready($pdo)) {
+    throw new RuntimeException('Tabelas MySQL não encontradas.');
+  }
+  aurora_ensure_inventory_items_table($pdo);
+  $item = aurora_normalize_inventory_input($payload);
+  if ($item['name'] === '') {
+    throw new InvalidArgumentException('Informe o nome do item.');
+  }
+
+  $exists = $pdo->prepare('SELECT id, sort_order FROM inventory_items WHERE id = ? LIMIT 1');
+  $exists->execute([$item['id']]);
+  $existing = $exists->fetch(PDO::FETCH_ASSOC);
+  $isNew = !$existing;
+  if ($isNew && $item['sortOrder'] <= 0) {
+    $max = (int) $pdo->query('SELECT COALESCE(MAX(sort_order), -1) FROM inventory_items')->fetchColumn();
+    $item['sortOrder'] = $max + 1;
+  } elseif (!$isNew && !array_key_exists('sortOrder', $payload)) {
+    $item['sortOrder'] = (int) ($existing['sort_order'] ?? 0);
+  }
+
+  $minStock = $item['minStock'] ?? null;
+  $notes = $item['notes'] ?? null;
+
+  if ($isNew) {
+    $stmt = $pdo->prepare(
+      'INSERT INTO inventory_items (id, name, unit, stock, min_stock, notes, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([
+      $item['id'], $item['name'], $item['unit'], $item['stock'],
+      $minStock, $notes, $item['sortOrder'],
+    ]);
+  } else {
+    $stmt = $pdo->prepare(
+      'UPDATE inventory_items SET name = ?, unit = ?, stock = ?, min_stock = ?, notes = ?, sort_order = ?
+       WHERE id = ?'
+    );
+    $stmt->execute([
+      $item['name'], $item['unit'], $item['stock'], $minStock, $notes,
+      $item['sortOrder'], $item['id'],
+    ]);
+  }
+
+  return $item;
+}
+
+function aurora_delete_one_inventory_item(PDO $pdo, string $itemId): void {
+  aurora_ensure_inventory_items_table($pdo);
+  $id = trim($itemId);
+  if ($id === '') {
+    throw new InvalidArgumentException('Item inválido.');
+  }
+  $stmt = $pdo->prepare('DELETE FROM inventory_items WHERE id = ?');
+  $stmt->execute([$id]);
 }

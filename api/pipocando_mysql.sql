@@ -61,11 +61,29 @@ CREATE TABLE `settings` (
   `hero_story` JSON DEFAULT NULL,
   `sobre_text1` TEXT,
   `sobre_text2` TEXT,
-  `delivery_fee` DECIMAL(10,2) NOT NULL DEFAULT 8.00,
+  `delivery_fee` DECIMAL(10,2) NOT NULL DEFAULT 5.00,
   `delivery_note` VARCHAR(255) DEFAULT 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+  `store_status` VARCHAR(20) NOT NULL DEFAULT 'auto' COMMENT 'auto, open, closed',
+  `open_time` VARCHAR(5) NOT NULL DEFAULT '19:30',
+  `close_time` VARCHAR(5) NOT NULL DEFAULT '22:00',
+  `open_days` VARCHAR(30) NOT NULL DEFAULT '1,2,3,4,5,6' COMMENT '0=Dom … 6=Sáb',
   `data_version` INT UNSIGNED NOT NULL DEFAULT 2,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `inventory_items` (
+  `id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(190) NOT NULL,
+  `unit` VARCHAR(30) NOT NULL DEFAULT 'un',
+  `stock` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `min_stock` DECIMAL(10,2) DEFAULT NULL COMMENT 'Alerta quando atingir',
+  `notes` VARCHAR(255) DEFAULT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_inventory_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `categories` (
@@ -242,7 +260,8 @@ INSERT INTO `settings` (
   `id`, `name`, `tagline`, `logo`, `banner`, `sobre_image`, `whatsapp`,
   `instagram`, `instagram_user`, `facebook`, `email`, `address`, `hours`,
   `followers`, `posts`, `map_embed`, `hero_badge`, `hero_story`,
-  `sobre_text1`, `sobre_text2`, `delivery_fee`, `delivery_note`, `data_version`
+  `sobre_text1`, `sobre_text2`, `delivery_fee`, `delivery_note`,
+  `store_status`, `open_time`, `close_time`, `open_days`, `data_version`
 ) VALUES (
   1,
   'Pipocando VV',
@@ -279,6 +298,10 @@ INSERT INTO `settings` (
   '',
   5.00,
   'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+  'auto',
+  '19:30',
+  '22:00',
+  '1,2,3,4,5,6',
   2
 );
 

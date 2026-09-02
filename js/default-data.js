@@ -51,6 +51,14 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     hours: 'Seg a Sáb · 19h30 às 22h',
 
+    storeStatus: 'auto',
+
+    openTime: '19:30',
+
+    closeTime: '22:00',
+
+    openDays: [1, 2, 3, 4, 5, 6],
+
     deliveryFee: 5,
 
     deliveryNote: 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',

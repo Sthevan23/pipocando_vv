@@ -4516,3 +4516,88 @@ html.is-lightbox-open .hero__bg-layer--near {
   }
 }
 
+
+/* --- Status da loja (fechada) --- */
+.store-status-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: #fff8eb;
+  border-bottom: 1px solid color-mix(in srgb, #b86a00 22%, var(--color-line));
+  color: #7a5200;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.store-status-banner[hidden] {
+  display: none !important;
+}
+
+body.store-banner-visible {
+  --store-banner-h: 2.65rem;
+}
+
+.store-status-banner__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 2.65rem;
+  padding: 0.45rem 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.store-status-banner__inner i {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.store-status-banner__hours {
+  font-weight: 500;
+  opacity: 0.92;
+}
+
+body.store-is-closed .header {
+  background: rgba(255, 250, 248, 0.96);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 var(--color-line);
+}
+
+body.store-banner-visible .header--solid {
+  top: var(--store-banner-h);
+  position: sticky;
+}
+
+@media (max-width: 640px) {
+  body.store-banner-visible {
+    --store-banner-h: 3.35rem;
+  }
+
+  .store-status-banner__inner {
+    flex-direction: column;
+    gap: 0.15rem;
+    min-height: 3.35rem;
+    padding: 0.4rem 0.35rem;
+    font-size: 0.8rem;
+  }
+
+  .store-status-banner__inner i {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  body.store-banner-visible .hero__content {
+    padding-top: calc(var(--header-h, 4.5rem) + var(--store-banner-h) + env(safe-area-inset-top, 0px) + 1.1rem);
+  }
+}
+
+body.store-is-closed .product-card:not(.product-card--unavailable) [data-order],
+body.store-is-closed .btn[data-order] {
+  pointer-events: none;
+  opacity: 0.55;
+}

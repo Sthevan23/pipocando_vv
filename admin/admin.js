@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderAllAdminPages();
   initFinanceiro();
   initSettings();
+  initInventoryPage();
   initCoupons();
   initModals();
   initOrderFilters();
@@ -52,6 +53,7 @@ function renderAllAdminPages() {
   renderDashboard();
   renderOrders();
   renderProducts();
+  renderInventoryItems();
   renderCategories();
   renderClients();
   renderCoupons();
@@ -177,6 +179,7 @@ const pageTitles = {
   dashboard: 'Dashboard',
   pedidos: 'Pedidos',
   produtos: 'Produtos',
+  estoque: 'Estoque',
   categorias: 'Categorias',
   clientes: 'Clientes',
   financeiro: 'Financeiro',
@@ -210,6 +213,7 @@ function navigateTo(page) {
 
   if (page === 'financeiro') initFinanceiro();
   if (page === 'cupons') renderCoupons();
+  if (page === 'estoque') renderInventoryItems();
   if (page === 'dashboard') renderDashboard();
   if (page === 'pedidos') {
     renderOrders();
@@ -2998,7 +3002,336 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/* --- Estoque (insumos) --- */
+function collectStockAlerts() {
+  const alerts = [];
+  (Storage.getInventoryItems?.() || []).forEach((item) => {
+    const stock = Number(item.stock) || 0;
+    const min = item.minStock != null && item.minStock !== '' ? Number(item.minStock) : null;
+    const unit = Storage.inventoryUnitLabel?.(item.unit) || item.unit || 'un';
+    if (stock <= 0) {
+      alerts.push({
+        kind: 'inventory',
+        level: 'danger',
+        id: item.id,
+        name: item.name,
+        message: 'Zerado — precisa comprar',
+      });
+    } else if (min != null && Number.isFinite(min) && stock <= min) {
+      alerts.push({
+        kind: 'inventory',
+        level: 'warn',
+        id: item.id,
+        name: item.name,
+        message: `Restam ${stock} ${unit} (alerta: ${min})`,
+      });
+    }
+  });
+  return alerts.sort((a, b) => {
+    if (a.level === b.level) return String(a.name).localeCompare(String(b.name), 'pt-BR');
+    return a.level === 'danger' ? -1 : 1;
+  });
+}
+
+function updateStockAlertBadge() {
+  const alerts = collectStockAlerts();
+  const badge = document.getElementById('sidebar-stock-badge');
+  if (!badge) return;
+  if (!alerts.length) {
+    badge.hidden = true;
+    return;
+  }
+  badge.hidden = false;
+  badge.textContent = String(alerts.length);
+  badge.title = `${alerts.length} item(ns) com estoque baixo ou zerado`;
+}
+
+function formatInventoryStatus(item) {
+  const stock = Number(item?.stock) || 0;
+  const min = item?.minStock != null && item?.minStock !== '' ? Number(item.minStock) : null;
+  if (stock <= 0) return '<span class="badge badge--danger">Zerado</span>';
+  if (min != null && Number.isFinite(min) && stock <= min) {
+    return `<span class="badge badge--warn">Baixo (${stock})</span>`;
+  }
+  return `<span class="badge badge--ok">${stock}</span>`;
+}
+
+function inventoryFilterValue() {
+  return document.getElementById('inventory-filter')?.value || 'all';
+}
+
+function inventoryMatchesFilter(item, filter) {
+  const stock = Number(item?.stock) || 0;
+  const min = item?.minStock != null && item?.minStock !== '' ? Number(item.minStock) : null;
+  if (filter === 'out') return stock <= 0;
+  if (filter === 'low') return stock <= 0 || (min != null && stock <= min);
+  return true;
+}
+
+function renderInventorySummary(items) {
+  const el = document.getElementById('inventory-summary');
+  if (!el) return;
+  let low = 0;
+  let out = 0;
+  items.forEach((item) => {
+    const stock = Number(item.stock) || 0;
+    const min = item.minStock != null && item.minStock !== '' ? Number(item.minStock) : null;
+    if (stock <= 0) out += 1;
+    else if (min != null && stock <= min) low += 1;
+  });
+  el.innerHTML = `
+    <div class="stock-summary__card">
+      <span class="stock-summary__label">Itens cadastrados</span>
+      <strong class="stock-summary__value">${items.length}</strong>
+    </div>
+    <div class="stock-summary__card stock-summary__card--warn">
+      <span class="stock-summary__label">Estoque baixo</span>
+      <strong class="stock-summary__value">${low}</strong>
+    </div>
+    <div class="stock-summary__card stock-summary__card--danger">
+      <span class="stock-summary__label">Zerados</span>
+      <strong class="stock-summary__value">${out}</strong>
+    </div>
+  `;
+}
+
+function renderInventoryItems() {
+  const tbody = document.querySelector('#inventory-table tbody');
+  const empty = document.getElementById('inventory-empty');
+  if (!tbody) return;
+
+  const items = Storage.getInventoryItems?.() || [];
+  const filter = inventoryFilterValue();
+  const filtered = items.filter((item) => inventoryMatchesFilter(item, filter));
+
+  renderInventorySummary(items);
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.hidden = items.length > 0;
+    updateStockAlertBadge();
+    return;
+  }
+  if (empty) empty.hidden = true;
+
+  tbody.innerHTML = filtered.map((item) => {
+    const unit = Storage.inventoryUnitLabel?.(item.unit) || item.unit || 'un';
+    const minVal = item.minStock != null && item.minStock !== '' ? String(item.minStock) : '';
+    return `
+    <tr class="mobile-card" data-inventory-id="${item.id}">
+      <td data-label="Item"><strong>${escapeHtml(item.name)}</strong>${item.notes ? `<br><small style="color:#888">${escapeHtml(item.notes)}</small>` : ''}</td>
+      <td data-label="Unidade">${escapeHtml(unit)}</td>
+      <td data-label="Quantidade">
+        <input type="number" class="stock-input" id="inv-stock-${item.id}" min="0" step="0.01" value="${Number(item.stock) || 0}" inputmode="decimal">
+      </td>
+      <td data-label="Alerta mín.">
+        <input type="number" class="stock-input stock-input--min" id="inv-min-${item.id}" min="0" step="0.01" placeholder="—" value="${minVal}" inputmode="decimal">
+      </td>
+      <td data-label="Situação">${formatInventoryStatus(item)}</td>
+      <td data-label="Ações">
+        <div class="table__actions">
+          <button type="button" class="btn btn--secondary btn--sm" onclick="saveInventoryItemQuick('${item.id}')" title="Salvar"><i class="fas fa-save"></i></button>
+          <button type="button" class="btn--icon edit" onclick="editInventoryItem('${item.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+          <button type="button" class="btn--icon delete" onclick="deleteInventoryItem('${item.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>
+  `;
+  }).join('');
+  updateStockAlertBadge();
+}
+
+function openInventoryItemModal(item = null) {
+  const isEdit = !!item;
+  const units = [
+    ['un', 'Unidade (un)'],
+    ['cx', 'Caixa (cx)'],
+    ['kg', 'Quilograma (kg)'],
+    ['g', 'Grama (g)'],
+    ['l', 'Litro (L)'],
+    ['ml', 'Mililitro (ml)'],
+    ['pct', 'Pacote (pct)'],
+  ];
+  openModal(isEdit ? 'Editar insumo' : 'Novo insumo', `
+    <form id="inventory-form">
+      <div class="form-group">
+        <label>Nome do item *</label>
+        <input type="text" id="inv-name" value="${escapeHtml(item?.name || '')}" placeholder="Ex: Chocolate ao leite" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Unidade</label>
+          <select id="inv-unit">
+            ${units.map(([val, label]) => `<option value="${val}" ${item?.unit === val ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantidade atual</label>
+          <input type="number" id="inv-stock" min="0" step="0.01" value="${item?.stock ?? 0}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Alerta quando chegar em</label>
+          <input type="number" id="inv-min" min="0" step="0.01" placeholder="Opcional" value="${item?.minStock ?? ''}">
+        </div>
+        <div class="form-group">
+          <label>Observação</label>
+          <input type="text" id="inv-notes" value="${escapeHtml(item?.notes || '')}" placeholder="Ex: Comprar no Atacadão">
+        </div>
+      </div>
+      <button type="submit" class="btn btn--primary">${isEdit ? 'Salvar' : 'Cadastrar'}</button>
+    </form>
+  `);
+
+  document.getElementById('inventory-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('inv-name').value.trim();
+    if (!name) {
+      showToast('Informe o nome do item.', 'error');
+      return;
+    }
+    const minRaw = document.getElementById('inv-min').value.trim();
+    const payload = {
+      name,
+      unit: document.getElementById('inv-unit').value,
+      stock: Number(document.getElementById('inv-stock').value) || 0,
+      notes: document.getElementById('inv-notes').value.trim(),
+      minStock: minRaw === '' ? null : Number(minRaw),
+    };
+    if (isEdit) payload.id = item.id;
+    else {
+      payload.id = Storage.generateId('inv');
+      payload.sortOrder = (Storage.getInventoryItems?.() || []).length;
+    }
+
+    const result = await Storage.saveInventoryItemAsync(payload);
+    if (!result?.ok) {
+      showToast(result?.error || 'Não sincronizou. Tente de novo.', 'error');
+      return;
+    }
+    closeModal();
+    showToast(isEdit ? 'Insumo atualizado!' : 'Insumo cadastrado!', 'success');
+    renderInventoryItems();
+  });
+}
+
+function editInventoryItem(id) {
+  const item = (Storage.getInventoryItems?.() || []).find((row) => row.id === id);
+  if (item) openInventoryItemModal(item);
+}
+
+async function saveInventoryItemQuick(id) {
+  const item = (Storage.getInventoryItems?.() || []).find((row) => row.id === id);
+  const stockInput = document.getElementById(`inv-stock-${id}`);
+  const minInput = document.getElementById(`inv-min-${id}`);
+  if (!item || !stockInput) return;
+
+  const stock = Number(stockInput.value);
+  if (!Number.isFinite(stock) || stock < 0) {
+    showToast('Quantidade inválida.', 'error');
+    return;
+  }
+  const minRaw = String(minInput?.value || '').trim();
+  const payload = {
+    ...item,
+    stock,
+    minStock: minRaw === '' ? null : Number(minRaw),
+  };
+
+  const result = await Storage.saveInventoryItemAsync(payload);
+  if (result?.ok) {
+    showToast('Insumo atualizado!', 'success');
+    renderInventoryItems();
+  } else {
+    showToast(result?.error || 'Não sincronizou.', 'error');
+  }
+}
+
+async function deleteInventoryItem(id) {
+  const item = (Storage.getInventoryItems?.() || []).find((row) => row.id === id);
+  if (!item) return;
+  if (!confirm(`Excluir "${item.name}" do estoque?`)) return;
+  const result = await Storage.deleteInventoryItemAsync(id);
+  if (result?.ok) {
+    showToast('Insumo excluído.', 'success');
+    renderInventoryItems();
+  } else {
+    showToast(result?.error || 'Não sincronizou.', 'error');
+  }
+}
+
+function initInventoryPage() {
+  document.getElementById('btn-new-inventory-item')?.addEventListener('click', () => openInventoryItemModal());
+  document.getElementById('inventory-filter')?.addEventListener('change', renderInventoryItems);
+  document.getElementById('inventory-table')?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target.matches('.stock-input')) return;
+    e.preventDefault();
+    const row = e.target.closest('[data-inventory-id]');
+    const id = row?.dataset.inventoryId;
+    if (id) saveInventoryItemQuick(id);
+  });
+  updateStockAlertBadge();
+}
+
 /* --- Configurações --- */
+function readOpenDaysFromForm() {
+  return [...document.querySelectorAll('#set-open-days input[type="checkbox"]')]
+    .filter((el) => el.checked)
+    .map((el) => Number(el.value))
+    .filter((n) => Number.isFinite(n));
+}
+
+function fillOpenDaysForm(days) {
+  const set = new Set(Storage.normalizeOpenDays?.(days) || [1, 2, 3, 4, 5, 6]);
+  document.querySelectorAll('#set-open-days input[type="checkbox"]').forEach((el) => {
+    el.checked = set.has(Number(el.value));
+  });
+}
+
+function syncHoursLabelFromForm() {
+  const hoursInput = document.getElementById('set-hours');
+  if (!hoursInput || hoursInput.dataset.manual === '1') return;
+  hoursInput.value = Storage.buildStoreHoursLabel({
+    openTime: document.getElementById('set-open-time')?.value || '19:30',
+    closeTime: document.getElementById('set-close-time')?.value || '22:00',
+    openDays: readOpenDaysFromForm(),
+  });
+}
+
+function updateStoreStatusPreview() {
+  const el = document.getElementById('store-status-preview');
+  if (!el) return;
+  const open = Storage.isStoreOpen?.();
+  const label = Storage.getStoreStatusLabel?.() || '';
+  el.innerHTML = open
+    ? `<span class="store-control__pill store-control__pill--open"><i class="fas fa-circle"></i> ${label}</span>`
+    : `<span class="store-control__pill store-control__pill--closed"><i class="fas fa-circle"></i> ${label}</span>`;
+
+  const status = Storage.getSettings()?.storeStatus || 'auto';
+  document.getElementById('store-status-auto')?.classList.toggle('is-active', status === 'auto');
+  document.getElementById('store-status-open')?.classList.toggle('is-active', status === 'open');
+  document.getElementById('store-status-closed')?.classList.toggle('is-active', status === 'closed');
+}
+
+async function setStoreStatusQuick(status) {
+  const allowed = ['auto', 'open', 'closed'];
+  if (!allowed.includes(status)) return;
+  Storage.saveSettings({ ...Storage.getSettings(), storeStatus: status });
+  updateStoreStatusPreview();
+  const result = typeof Storage.saveSettingsAsync === 'function'
+    ? await Storage.saveSettingsAsync(Storage.getSettings())
+    : { ok: true };
+  if (!result?.ok) {
+    showToast(result?.error || 'Não sincronizou na nuvem. Tente de novo.', 'error');
+    return;
+  }
+  showToast(
+    status === 'open' ? 'Loja aberta no site!' : status === 'closed' ? 'Loja fechada no site.' : 'Horário automático ativado.',
+    'success',
+  );
+}
+
 function initSettings() {
   const s = Storage.getSettings();
 
@@ -3011,7 +3344,15 @@ function initSettings() {
   document.getElementById('set-instagram').value = s.instagram || '';
   document.getElementById('set-instagram-user').value = s.instagramUser || '';
   document.getElementById('set-address').value = s.address || '';
-  document.getElementById('set-hours').value = s.hours || '';
+  document.getElementById('set-open-time').value = s.openTime || '19:30';
+  document.getElementById('set-close-time').value = s.closeTime || '22:00';
+  fillOpenDaysForm(s.openDays);
+  const hoursInput = document.getElementById('set-hours');
+  if (hoursInput) {
+    hoursInput.value = s.hours || Storage.buildStoreHoursLabel?.(s) || 'Seg a Sáb · 19h30 às 22h';
+    hoursInput.dataset.manual = s.hours ? '1' : '0';
+    hoursInput.addEventListener('input', () => { hoursInput.dataset.manual = '1'; });
+  }
   document.getElementById('set-delivery-fee').value =
     s.deliveryFee != null && s.deliveryFee !== '' ? Number(s.deliveryFee) : 5;
   document.getElementById('set-delivery-note').value =
@@ -3045,6 +3386,19 @@ function initSettings() {
     adminUrlEl.value = s.adminUrl || brandDefaults.adminUrl || window.ADMIN_URL || 'https://pipocandovv.com.br/admin/login.html';
   }
 
+  ['set-open-time', 'set-close-time'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('change', syncHoursLabelFromForm);
+  });
+  document.querySelectorAll('#set-open-days input[type="checkbox"]').forEach((el) => {
+    el.addEventListener('change', syncHoursLabelFromForm);
+  });
+
+  document.getElementById('store-status-auto')?.addEventListener('click', () => setStoreStatusQuick('auto'));
+  document.getElementById('store-status-open')?.addEventListener('click', () => setStoreStatusQuick('open'));
+  document.getElementById('store-status-closed')?.addEventListener('click', () => setStoreStatusQuick('closed'));
+  updateStoreStatusPreview();
+  setInterval(updateStoreStatusPreview, 60000);
+
   bindImageUpload('set-banner-file', 'set-banner');
   bindImageUpload('set-sobre-file', 'set-sobre-image');
 
@@ -3064,7 +3418,15 @@ function initSettings() {
       instagram: document.getElementById('set-instagram').value.trim(),
       instagramUser: document.getElementById('set-instagram-user').value.trim(),
       address: document.getElementById('set-address').value.trim(),
-      hours: document.getElementById('set-hours').value.trim(),
+      hours: document.getElementById('set-hours').value.trim() || Storage.buildStoreHoursLabel({
+        openTime: document.getElementById('set-open-time').value,
+        closeTime: document.getElementById('set-close-time').value,
+        openDays: readOpenDaysFromForm(),
+      }),
+      openTime: document.getElementById('set-open-time').value || '19:30',
+      closeTime: document.getElementById('set-close-time').value || '22:00',
+      openDays: readOpenDaysFromForm(),
+      storeStatus: Storage.getSettings()?.storeStatus || 'auto',
       deliveryFee,
       deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
       sobreText1: document.getElementById('set-sobre1').value.trim(),
@@ -3086,15 +3448,15 @@ function initSettings() {
     };
 
     Storage.saveSettings(payload);
-    if (typeof Storage.saveAsync === 'function') {
-      const data = Storage.getAll();
-      const ok = await Storage.saveAsync(data);
-      if (!ok) {
-        showToast('Salvo no celular, mas não sincronizou na nuvem. Tente de novo.', 'error');
-        return;
-      }
+    const result = typeof Storage.saveSettingsAsync === 'function'
+      ? await Storage.saveSettingsAsync(payload)
+      : { ok: true };
+    if (!result?.ok) {
+      showToast(result?.error || 'Salvo no celular, mas não sincronizou na nuvem. Tente de novo.', 'error');
+      return;
     }
     showToast('Site atualizado!', 'success');
+    updateStoreStatusPreview();
   });
 
   document.getElementById('password-form').addEventListener('submit', (e) => {
@@ -3211,3 +3573,6 @@ window.viewOrder = viewOrder;
 window.deleteOrder = deleteOrder;
 window.closeModal = closeModal;
 window.navigateTo = navigateTo;
+window.editInventoryItem = editInventoryItem;
+window.saveInventoryItemQuick = saveInventoryItemQuick;
+window.deleteInventoryItem = deleteInventoryItem;
