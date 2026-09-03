@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <link rel="stylesheet" href="css/pipocando-brand.css?v=19">
 </head>
 <body>
@@ -389,6 +389,16 @@
                 </span>
               </label>
             </div>
+            <div class="pix-details" id="cart-pix-details">
+              <p class="pix-details__title"><i class="fas fa-qrcode" aria-hidden="true"></i> Dados do Pix</p>
+              <p><span>Nome</span><strong id="cart-pix-name">Beatriz Ferreira</strong></p>
+              <p><span>Banco</span><strong id="cart-pix-bank">Nubank</strong></p>
+              <p class="pix-details__key">
+                <span>Chave</span>
+                <strong id="cart-pix-key">27999634430</strong>
+                <button type="button" class="btn btn--ghost btn--sm" id="cart-pix-copy" title="Copiar chave Pix">Copiar</button>
+              </p>
+            </div>
             <p class="payment__note" id="cart-payment-card-note" hidden>
               No cartão de crédito, a taxa da operadora é repassada ao cliente.
             </p>
@@ -449,13 +459,13 @@
 
   <div class="cart-feedback" id="cart-feedback" hidden aria-live="polite"></div>
 
-  <script src="js/brand-config.js?v=2"></script>
+  <script src="js/brand-config.js?v=3"></script>
   <script src="js/pipoca-config.js?v=3"></script>
-  <script src="js/default-data.js?v=5"></script>
+  <script src="js/default-data.js?v=6"></script>
   <script src="js/product-photos.js?v=3"></script>
   <script src="js/storage.js?v=14"></script>
   <script src="js/delivery-zones.js?v=2"></script>
-  <script src="js/cart-shared.js?v=6"></script>
-  <script src="script.js?v=29"></script>
+  <script src="js/cart-shared.js?v=7"></script>
+  <script src="script.js?v=30"></script>
 </body>
 </html>

@@ -15,6 +15,9 @@ window.BRAND_DEFAULTS = {
   placeShort: 'Cobilandia, Vila Velha',
   whatsappOrderMsg: 'Olá! Quero pedir pipocas gourmet 🍿',
   whatsappFloatMsg: 'Olá! Tenho uma dúvida 🍿',
+  pixKey: '27999634430',
+  pixName: 'Beatriz Ferreira',
+  pixBank: 'Nubank',
   marqueeItems: [
     'Pipocas Trufadas',
     'Ninho',

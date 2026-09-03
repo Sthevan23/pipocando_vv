@@ -9,6 +9,7 @@ function pipocando_brand_keys(): array {
   return [
     'brandName', 'brandAccent', 'brandSub', 'slogan', 'heroLine1', 'heroLine2Prefix',
     'heroWords', 'heroCategories', 'placeShort', 'siteUrl', 'adminUrl', 'whatsappOrderMsg', 'whatsappFloatMsg',
+    'pixKey', 'pixName', 'pixBank',
   ];
 }
 
@@ -1035,23 +1036,23 @@ function aurora_save_all(PDO $pdo, array $payload): void {
     if (aurora_table_exists($pdo, 'inventory_items')) {
       $pdo->exec('DELETE FROM inventory_items');
       $invStmt = $pdo->prepare(
-        'INSERT INTO inventory_items (id, name, unit, stock, min_stock, notes, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO inventory_items (id, name, category, unit, stock, unit_cost, min_stock, notes, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       );
       foreach (array_values($payload['inventoryItems'] ?? []) as $i => $item) {
         if (!is_array($item)) continue;
-        $name = trim((string) ($item['name'] ?? ''));
-        if ($name === '') continue;
+        $norm = aurora_normalize_inventory_input($item);
+        if ($norm['name'] === '') continue;
         $invStmt->execute([
-          $item['id'] ?? uniqid('inv', true),
-          $name,
-          aurora_normalize_inventory_unit($item['unit'] ?? 'un'),
-          aurora_normalize_inventory_qty($item['stock'] ?? 0),
-          isset($item['minStock']) && $item['minStock'] !== '' && $item['minStock'] !== null
-            ? aurora_normalize_inventory_qty($item['minStock'])
-            : null,
-          trim((string) ($item['notes'] ?? '')) ?: null,
-          (int) ($item['sortOrder'] ?? $i),
+          $norm['id'],
+          $norm['name'],
+          $norm['category'],
+          $norm['unit'],
+          $norm['stock'],
+          $norm['unitCost'],
+          $norm['minStock'] ?? null,
+          $norm['notes'] ?? null,
+          (int) ($norm['sortOrder'] ?? $i),
         ]);
       }
     }
@@ -1910,11 +1911,19 @@ function aurora_save_settings_only(PDO $pdo, array $settings): void {
 
 function aurora_normalize_inventory_unit($unit): string {
   $u = strtolower(trim((string) $unit));
-  $allowed = ['un', 'cx', 'kg', 'g', 'l', 'ml', 'pct', 'lt'];
+  $allowed = ['un', 'cx', 'kg', 'g', 'l', 'ml', 'pct', 'm', 'lt'];
   if ($u === 'lt') $u = 'l';
   if ($u === 'pacote') $u = 'pct';
   if ($u === 'caixa') $u = 'cx';
-  return in_array($u, $allowed, true) ? $u : 'un';
+  if ($u === 'metro' || $u === 'metros') $u = 'm';
+  return in_array($u, $allowed, true) ? ($u === 'lt' ? 'l' : $u) : 'un';
+}
+
+function aurora_normalize_inventory_category($category): string {
+  $c = strtolower(trim((string) $category));
+  $allowed = ['recheios', 'producao', 'embalagens', 'outros'];
+  if ($c === 'produção' || $c === 'producão') $c = 'producao';
+  return in_array($c, $allowed, true) ? $c : 'outros';
 }
 
 function aurora_normalize_inventory_qty($value): float {
@@ -1923,20 +1932,39 @@ function aurora_normalize_inventory_qty($value): float {
   return max(0, round((float) $value, 2));
 }
 
+function aurora_normalize_inventory_money($value): float {
+  if ($value === null || $value === '') return 0.0;
+  if (is_string($value)) {
+    $value = str_replace(['R$', ' '], '', $value);
+    if (strpos($value, ',') !== false) {
+      $value = str_replace('.', '', $value);
+      $value = str_replace(',', '.', $value);
+    }
+  }
+  if (!is_numeric($value)) return 0.0;
+  return max(0, round((float) $value, 2));
+}
+
 function aurora_load_inventory_items(PDO $pdo): array {
   if (!aurora_table_exists($pdo, 'inventory_items')) {
     return [];
   }
+  aurora_ensure_inventory_items_table($pdo);
   $rows = $pdo->query(
     'SELECT * FROM inventory_items ORDER BY sort_order ASC, name ASC'
   )->fetchAll(PDO::FETCH_ASSOC);
   $items = [];
   foreach ($rows as $row) {
+    $stock = aurora_normalize_inventory_qty($row['stock'] ?? 0);
+    $unitCost = aurora_normalize_inventory_money($row['unit_cost'] ?? 0);
     $item = [
       'id' => (string) ($row['id'] ?? ''),
       'name' => (string) ($row['name'] ?? ''),
+      'category' => aurora_normalize_inventory_category($row['category'] ?? 'outros'),
       'unit' => aurora_normalize_inventory_unit($row['unit'] ?? 'un'),
-      'stock' => aurora_normalize_inventory_qty($row['stock'] ?? 0),
+      'stock' => $stock,
+      'unitCost' => $unitCost,
+      'totalValue' => round($stock * $unitCost, 2),
       'sortOrder' => (int) ($row['sort_order'] ?? 0),
     ];
     if ($row['min_stock'] !== null && $row['min_stock'] !== '') {
@@ -1953,11 +1981,16 @@ function aurora_normalize_inventory_input(array $item): array {
   $name = trim((string) ($item['name'] ?? ''));
   $id = trim((string) ($item['id'] ?? ''));
   if ($id === '') $id = 'inv_' . bin2hex(random_bytes(6));
+  $stock = aurora_normalize_inventory_qty($item['stock'] ?? 0);
+  $unitCost = aurora_normalize_inventory_money($item['unitCost'] ?? $item['unit_cost'] ?? 0);
   $out = [
     'id' => $id,
     'name' => $name,
+    'category' => aurora_normalize_inventory_category($item['category'] ?? 'outros'),
     'unit' => aurora_normalize_inventory_unit($item['unit'] ?? 'un'),
-    'stock' => aurora_normalize_inventory_qty($item['stock'] ?? 0),
+    'stock' => $stock,
+    'unitCost' => $unitCost,
+    'totalValue' => round($stock * $unitCost, 2),
     'sortOrder' => (int) ($item['sortOrder'] ?? 0),
   ];
   if (array_key_exists('minStock', $item) && $item['minStock'] !== '' && $item['minStock'] !== null) {
@@ -1994,21 +2027,21 @@ function aurora_save_one_inventory_item(PDO $pdo, array $payload): array {
 
   if ($isNew) {
     $stmt = $pdo->prepare(
-      'INSERT INTO inventory_items (id, name, unit, stock, min_stock, notes, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO inventory_items (id, name, category, unit, stock, unit_cost, min_stock, notes, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
-      $item['id'], $item['name'], $item['unit'], $item['stock'],
-      $minStock, $notes, $item['sortOrder'],
+      $item['id'], $item['name'], $item['category'], $item['unit'], $item['stock'],
+      $item['unitCost'], $minStock, $notes, $item['sortOrder'],
     ]);
   } else {
     $stmt = $pdo->prepare(
-      'UPDATE inventory_items SET name = ?, unit = ?, stock = ?, min_stock = ?, notes = ?, sort_order = ?
+      'UPDATE inventory_items SET name = ?, category = ?, unit = ?, stock = ?, unit_cost = ?, min_stock = ?, notes = ?, sort_order = ?
        WHERE id = ?'
     );
     $stmt->execute([
-      $item['name'], $item['unit'], $item['stock'], $minStock, $notes,
-      $item['sortOrder'], $item['id'],
+      $item['name'], $item['category'], $item['unit'], $item['stock'], $item['unitCost'],
+      $minStock, $notes, $item['sortOrder'], $item['id'],
     ]);
   }
 

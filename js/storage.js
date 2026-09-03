@@ -889,7 +889,11 @@ const Storage = (() => {
   }
 
   function getInventoryItems() {
+    const catRank = { recheios: 0, producao: 1, embalagens: 2, outros: 3 };
     return (getAll().inventoryItems || []).slice().sort((a, b) => {
+      const ca = catRank[String(a.category || 'outros').toLowerCase()] ?? 9;
+      const cb = catRank[String(b.category || 'outros').toLowerCase()] ?? 9;
+      if (ca !== cb) return ca - cb;
       const diff = sortOrderValue(a) - sortOrderValue(b);
       if (diff !== 0) return diff;
       return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
@@ -897,8 +901,53 @@ const Storage = (() => {
   }
 
   function inventoryUnitLabel(unit) {
-    const map = { un: 'un', cx: 'cx', kg: 'kg', g: 'g', l: 'L', ml: 'ml', pct: 'pct' };
+    const map = { un: 'un', cx: 'cx', kg: 'kg', g: 'g', l: 'L', ml: 'ml', pct: 'pct', m: 'm' };
     return map[String(unit || 'un').toLowerCase()] || 'un';
+  }
+
+  function inventoryCategoryLabel(category) {
+    const map = {
+      recheios: 'Recheios',
+      producao: 'Produção',
+      embalagens: 'Embalagens',
+      outros: 'Outros',
+    };
+    return map[String(category || 'outros').toLowerCase()] || 'Outros';
+  }
+
+  function inventoryItemTotal(item) {
+    const stock = Number(item?.stock) || 0;
+    const unitCost = Number(item?.unitCost) || 0;
+    return Math.round(stock * unitCost * 100) / 100;
+  }
+
+  function defaultInventorySeed() {
+    const rows = [
+      { id: 'inv_kinder', name: 'Kinder', category: 'recheios', unit: 'kg', stock: 3, minStock: 1 },
+      { id: 'inv_ninho', name: 'Ninho', category: 'recheios', unit: 'kg', stock: 5, minStock: 1 },
+      { id: 'inv_nutella', name: 'Nutella', category: 'recheios', unit: 'kg', stock: 2, minStock: 1 },
+      { id: 'inv_choconuts', name: 'Choconuts', category: 'recheios', unit: 'kg', stock: 4, minStock: 1 },
+      { id: 'inv_cookie', name: 'Cookie', category: 'recheios', unit: 'kg', stock: 4, minStock: 1 },
+      { id: 'inv_milho', name: 'Milho', category: 'producao', unit: 'kg', stock: 4, minStock: 1 },
+      { id: 'inv_acucar', name: 'Açúcar', category: 'producao', unit: 'kg', stock: 4, minStock: 1 },
+      { id: 'inv_margarina', name: 'Margarina', category: 'producao', unit: 'kg', stock: 1, minStock: 0.5 },
+      { id: 'inv_glucose', name: 'Glucose', category: 'producao', unit: 'ml', stock: 0, minStock: 500, notes: 'Precisa comprar (500 ml)' },
+      { id: 'inv_bicarbonato', name: 'Bicarbonato', category: 'producao', unit: 'un', stock: 0, minStock: 1, notes: 'Precisa comprar' },
+      { id: 'inv_desmoldante', name: 'Desmoldante', category: 'producao', unit: 'ml', stock: 700, minStock: 200 },
+      { id: 'inv_pote500', name: 'Pote 500 ml', category: 'embalagens', unit: 'un', stock: 120, minStock: 30 },
+      { id: 'inv_pote1000', name: 'Pote 1000 ml', category: 'embalagens', unit: 'un', stock: 50, minStock: 15 },
+      { id: 'inv_pote250', name: 'Pote 250 ml', category: 'embalagens', unit: 'un', stock: 10, minStock: 20 },
+      { id: 'inv_colher', name: 'Colher', category: 'embalagens', unit: 'un', stock: 90, minStock: 30 },
+      { id: 'inv_sacola', name: 'Sacola Kraft', category: 'embalagens', unit: 'un', stock: 100, minStock: 20 },
+      { id: 'inv_lacre', name: 'Lacre', category: 'embalagens', unit: 'un', stock: 1000, minStock: 100 },
+      { id: 'inv_filme', name: 'Plástico filme', category: 'embalagens', unit: 'm', stock: 300, minStock: 50 },
+    ];
+    return rows.map((row, i) => ({
+      ...row,
+      unitCost: 0,
+      totalValue: 0,
+      sortOrder: i,
+    }));
   }
 
   function replaceInventoryItemInMemory(item, { remove = false } = {}) {
@@ -1771,7 +1820,8 @@ const Storage = (() => {
     normalizeOpenDays, buildStoreHoursLabel, isStoreOpen, isStoreOpenBySchedule,
     storeClosedMessage, getStoreStatusLabel,
     defaultPipocaSchedule, defaultPipocaHoursText,
-    getInventoryItems, saveInventoryItemAsync, deleteInventoryItemAsync, inventoryUnitLabel,
+    getInventoryItems, saveInventoryItemAsync, deleteInventoryItemAsync,
+    inventoryUnitLabel, inventoryCategoryLabel, inventoryItemTotal, defaultInventorySeed,
     getProducts, saveProducts, saveProductsAsync, setProductActiveAsync, publishCatalogAsync,
     getCategories, saveCategories,
     getClients, saveClients,

@@ -33,6 +33,10 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     whatsappFloatMsg: 'Olá! Tenho uma dúvida 🍿',
 
+    pixKey: '27999634430',
+    pixName: 'Beatriz Ferreira',
+    pixBank: 'Nubank',
+
     logo: '',
 
     banner: 'products/pipoca-g.jpg',

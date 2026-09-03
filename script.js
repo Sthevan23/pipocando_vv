@@ -721,7 +721,24 @@ function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty
   const pay = payment || (Cart?.getPayment?.() || 'pix');
   const payLabel = Cart?.paymentLabel?.(pay)
     || (pay === 'dinheiro' ? 'Dinheiro' : pay === 'cartao' ? 'Link para cartão de crédito (repasse da taxa)' : 'Pix');
-  const payNote = pay === 'cartao' ? 'Obs.: taxa do cartão repassada ao cliente.\n' : '';
+  let payNote = '';
+  if (pay === 'cartao') {
+    payNote = 'Obs.: taxa do cartão repassada ao cliente.\n';
+  } else if (pay === 'pix') {
+    const pix = Cart?.getPixInfo?.() || (() => {
+      const st = Storage.getSettings() || {};
+      const d = window.BRAND_DEFAULTS || {};
+      return {
+        key: st.pixKey || d.pixKey || '27999634430',
+        name: st.pixName || d.pixName || 'Beatriz Ferreira',
+        bank: st.pixBank || d.pixBank || 'Nubank',
+      };
+    })();
+    payNote =
+      `Nome: ${pix.name}\n` +
+      `Banco: ${pix.bank}\n` +
+      `Chave Pix: ${pix.key}\n`;
+  }
   const lines = items.map((item) => formatWhatsAppItemBlock(item)).join('\n');
 
   const couponBlock = coupon && discount > 0
@@ -2951,9 +2968,36 @@ function initLightbox() {
   });
 }
 
+function getPixSettings() {
+  if (Cart?.getPixInfo) return Cart.getPixInfo();
+  const s = Storage.getSettings() || {};
+  const d = window.BRAND_DEFAULTS || {};
+  return {
+    key: String(s.pixKey || d.pixKey || '27999634430').trim(),
+    name: String(s.pixName || d.pixName || 'Beatriz Ferreira').trim(),
+    bank: String(s.pixBank || d.pixBank || 'Nubank').trim(),
+  };
+}
+
+function fillCartPixDetails() {
+  const pix = getPixSettings();
+  const nameEl = document.getElementById('cart-pix-name');
+  const bankEl = document.getElementById('cart-pix-bank');
+  const keyEl = document.getElementById('cart-pix-key');
+  if (nameEl) nameEl.textContent = pix.name;
+  if (bankEl) bankEl.textContent = pix.bank;
+  if (keyEl) keyEl.textContent = pix.key;
+}
+
 function syncPaymentNote(pay) {
   const note = document.getElementById('cart-payment-card-note');
   if (note) note.hidden = pay !== 'cartao';
+  const pixBox = document.getElementById('cart-pix-details');
+  if (pixBox) {
+    const showPix = pay === 'pix' || !pay;
+    pixBox.hidden = !showPix;
+    if (showPix) fillCartPixDetails();
+  }
 }
 
 function initCart() {
@@ -2990,7 +3034,22 @@ function initCart() {
   document.querySelectorAll('input[name="cart-payment"]').forEach((el) => {
     el.checked = el.value === pay;
   });
+  fillCartPixDetails();
   syncPaymentNote(pay);
+  document.getElementById('cart-pix-copy')?.addEventListener('click', async () => {
+    const key = getPixSettings().key;
+    try {
+      await navigator.clipboard.writeText(key);
+      const btn = document.getElementById('cart-pix-copy');
+      if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = 'Copiado!';
+        setTimeout(() => { btn.textContent = prev || 'Copiar'; }, 1600);
+      }
+    } catch (_) {
+      window.prompt('Copie a chave Pix:', key);
+    }
+  });
   document.getElementById('cart-coupon-apply')?.addEventListener('click', applyCartCoupon);
   document.getElementById('cart-coupon-remove')?.addEventListener('click', () => {
     const msg = document.getElementById('cart-coupon-msg');

@@ -3003,6 +3003,23 @@ function escapeHtml(str) {
 }
 
 /* --- Estoque (insumos) --- */
+const INVENTORY_CATEGORY_ORDER = ['recheios', 'producao', 'embalagens', 'outros'];
+
+function inventoryCategoryLabel(cat) {
+  return Storage.inventoryCategoryLabel?.(cat)
+    || ({ recheios: 'Recheios', producao: 'Produção', embalagens: 'Embalagens', outros: 'Outros' }[cat] || 'Outros');
+}
+
+function inventoryUnitCost(item) {
+  const n = Number(item?.unitCost);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function inventoryTotalValue(item) {
+  if (typeof Storage.inventoryItemTotal === 'function') return Storage.inventoryItemTotal(item);
+  return Math.round((Number(item?.stock) || 0) * inventoryUnitCost(item) * 100) / 100;
+}
+
 function collectStockAlerts() {
   const alerts = [];
   (Storage.getInventoryItems?.() || []).forEach((item) => {
@@ -3049,11 +3066,11 @@ function updateStockAlertBadge() {
 function formatInventoryStatus(item) {
   const stock = Number(item?.stock) || 0;
   const min = item?.minStock != null && item?.minStock !== '' ? Number(item.minStock) : null;
-  if (stock <= 0) return '<span class="badge badge--danger">Zerado</span>';
+  if (stock <= 0) return '<span class="badge badge--danger">Comprar</span>';
   if (min != null && Number.isFinite(min) && stock <= min) {
     return `<span class="badge badge--warn">Baixo (${stock})</span>`;
   }
-  return `<span class="badge badge--ok">${stock}</span>`;
+  return `<span class="badge badge--ok">OK</span>`;
 }
 
 function inventoryFilterValue() {
@@ -3063,8 +3080,12 @@ function inventoryFilterValue() {
 function inventoryMatchesFilter(item, filter) {
   const stock = Number(item?.stock) || 0;
   const min = item?.minStock != null && item?.minStock !== '' ? Number(item.minStock) : null;
+  const cat = String(item?.category || 'outros').toLowerCase();
   if (filter === 'out') return stock <= 0;
   if (filter === 'low') return stock <= 0 || (min != null && stock <= min);
+  if (filter === 'recheios' || filter === 'producao' || filter === 'embalagens' || filter === 'outros') {
+    return cat === filter;
+  }
   return true;
 }
 
@@ -3073,13 +3094,19 @@ function renderInventorySummary(items) {
   if (!el) return;
   let low = 0;
   let out = 0;
+  let invested = 0;
   items.forEach((item) => {
     const stock = Number(item.stock) || 0;
     const min = item.minStock != null && item.minStock !== '' ? Number(item.minStock) : null;
+    invested += inventoryTotalValue(item);
     if (stock <= 0) out += 1;
     else if (min != null && stock <= min) low += 1;
   });
   el.innerHTML = `
+    <div class="stock-summary__card stock-summary__card--money">
+      <span class="stock-summary__label">Valor investido no estoque</span>
+      <strong class="stock-summary__value">${Storage.formatCurrency(invested)}</strong>
+    </div>
     <div class="stock-summary__card">
       <span class="stock-summary__label">Itens cadastrados</span>
       <strong class="stock-summary__value">${items.length}</strong>
@@ -3089,9 +3116,34 @@ function renderInventorySummary(items) {
       <strong class="stock-summary__value">${low}</strong>
     </div>
     <div class="stock-summary__card stock-summary__card--danger">
-      <span class="stock-summary__label">Zerados</span>
+      <span class="stock-summary__label">Zerados / comprar</span>
       <strong class="stock-summary__value">${out}</strong>
     </div>
+  `;
+}
+
+function renderInventorySpend(items) {
+  const el = document.getElementById('inventory-spend');
+  if (!el) return;
+  const totals = {};
+  INVENTORY_CATEGORY_ORDER.forEach((key) => { totals[key] = 0; });
+  items.forEach((item) => {
+    const cat = String(item.category || 'outros').toLowerCase();
+    const key = totals[cat] != null ? cat : 'outros';
+    totals[key] += inventoryTotalValue(item);
+  });
+  const cards = INVENTORY_CATEGORY_ORDER
+    .filter((key) => items.some((item) => String(item.category || 'outros').toLowerCase() === key) || key !== 'outros')
+    .map((key) => `
+      <div class="stock-spend__card">
+        <span class="stock-spend__label">${inventoryCategoryLabel(key)}</span>
+        <strong class="stock-spend__value">${Storage.formatCurrency(totals[key] || 0)}</strong>
+      </div>
+    `).join('');
+  el.innerHTML = `
+    <h3 class="stock-spend__title"><i class="fas fa-wallet"></i> Visão de gastos por categoria</h3>
+    <div class="stock-spend__grid">${cards}</div>
+    <p class="stock-spend__hint">Preencha o campo <strong>R$ / un</strong> (valor do kg, ml ou unidade). O total = quantidade × valor unitário.</p>
   `;
 }
 
@@ -3105,6 +3157,7 @@ function renderInventoryItems() {
   const filtered = items.filter((item) => inventoryMatchesFilter(item, filter));
 
   renderInventorySummary(items);
+  renderInventorySpend(items);
 
   if (!filtered.length) {
     tbody.innerHTML = '';
@@ -3114,30 +3167,65 @@ function renderInventoryItems() {
   }
   if (empty) empty.hidden = true;
 
-  tbody.innerHTML = filtered.map((item) => {
-    const unit = Storage.inventoryUnitLabel?.(item.unit) || item.unit || 'un';
-    const minVal = item.minStock != null && item.minStock !== '' ? String(item.minStock) : '';
-    return `
-    <tr class="mobile-card" data-inventory-id="${item.id}">
-      <td data-label="Item"><strong>${escapeHtml(item.name)}</strong>${item.notes ? `<br><small style="color:#888">${escapeHtml(item.notes)}</small>` : ''}</td>
-      <td data-label="Unidade">${escapeHtml(unit)}</td>
-      <td data-label="Quantidade">
-        <input type="number" class="stock-input" id="inv-stock-${item.id}" min="0" step="0.01" value="${Number(item.stock) || 0}" inputmode="decimal">
-      </td>
-      <td data-label="Alerta mín.">
-        <input type="number" class="stock-input stock-input--min" id="inv-min-${item.id}" min="0" step="0.01" placeholder="—" value="${minVal}" inputmode="decimal">
-      </td>
-      <td data-label="Situação">${formatInventoryStatus(item)}</td>
-      <td data-label="Ações">
-        <div class="table__actions">
-          <button type="button" class="btn btn--secondary btn--sm" onclick="saveInventoryItemQuick('${item.id}')" title="Salvar"><i class="fas fa-save"></i></button>
-          <button type="button" class="btn--icon edit" onclick="editInventoryItem('${item.id}')" title="Editar"><i class="fas fa-edit"></i></button>
-          <button type="button" class="btn--icon delete" onclick="deleteInventoryItem('${item.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
-        </div>
-      </td>
-    </tr>
-  `;
-  }).join('');
+  const grouped = {};
+  filtered.forEach((item) => {
+    const cat = String(item.category || 'outros').toLowerCase();
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  });
+
+  const parts = [];
+  INVENTORY_CATEGORY_ORDER.forEach((cat) => {
+    const list = grouped[cat];
+    if (!list?.length) return;
+    const catTotal = list.reduce((sum, item) => sum + inventoryTotalValue(item), 0);
+    parts.push(`
+      <tr class="inventory-group">
+        <td colspan="9">
+          <div class="inventory-group__row">
+            <strong>${inventoryCategoryLabel(cat)}</strong>
+            <span>${list.length} item(ns) · ${Storage.formatCurrency(catTotal)}</span>
+          </div>
+        </td>
+      </tr>
+    `);
+    list.forEach((item) => {
+      const unit = Storage.inventoryUnitLabel?.(item.unit) || item.unit || 'un';
+      const minVal = item.minStock != null && item.minStock !== '' ? String(item.minStock) : '';
+      const costVal = inventoryUnitCost(item) || '';
+      const total = inventoryTotalValue(item);
+      parts.push(`
+        <tr class="mobile-card" data-inventory-id="${item.id}">
+          <td data-label="Item">
+            <strong>${escapeHtml(item.name)}</strong>
+            ${item.notes ? `<br><small class="inventory-notes">${escapeHtml(item.notes)}</small>` : ''}
+          </td>
+          <td data-label="Categoria">${escapeHtml(inventoryCategoryLabel(item.category))}</td>
+          <td data-label="Unidade">${escapeHtml(unit)}</td>
+          <td data-label="Quantidade">
+            <input type="number" class="stock-input" id="inv-stock-${item.id}" min="0" step="0.01" value="${Number(item.stock) || 0}" inputmode="decimal">
+          </td>
+          <td data-label="R$ / un">
+            <input type="number" class="stock-input stock-input--cost" id="inv-cost-${item.id}" min="0" step="0.01" placeholder="0,00" value="${costVal}" inputmode="decimal" title="Valor por ${escapeHtml(unit)}">
+          </td>
+          <td data-label="Total"><strong class="inventory-total" id="inv-total-${item.id}">${Storage.formatCurrency(total)}</strong></td>
+          <td data-label="Alerta mín.">
+            <input type="number" class="stock-input stock-input--min" id="inv-min-${item.id}" min="0" step="0.01" placeholder="—" value="${minVal}" inputmode="decimal">
+          </td>
+          <td data-label="Situação">${formatInventoryStatus(item)}</td>
+          <td data-label="Ações">
+            <div class="table__actions">
+              <button type="button" class="btn btn--secondary btn--sm" onclick="saveInventoryItemQuick('${item.id}')" title="Salvar"><i class="fas fa-save"></i></button>
+              <button type="button" class="btn--icon edit" onclick="editInventoryItem('${item.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+              <button type="button" class="btn--icon delete" onclick="deleteInventoryItem('${item.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+  });
+
+  tbody.innerHTML = parts.join('');
   updateStockAlertBadge();
 }
 
@@ -3150,24 +3238,44 @@ function openInventoryItemModal(item = null) {
     ['g', 'Grama (g)'],
     ['l', 'Litro (L)'],
     ['ml', 'Mililitro (ml)'],
+    ['m', 'Metro (m)'],
     ['pct', 'Pacote (pct)'],
   ];
+  const categories = [
+    ['recheios', 'Recheios'],
+    ['producao', 'Produção'],
+    ['embalagens', 'Embalagens'],
+    ['outros', 'Outros'],
+  ];
+  const currentCat = item?.category || 'recheios';
   openModal(isEdit ? 'Editar insumo' : 'Novo insumo', `
     <form id="inventory-form">
       <div class="form-group">
         <label>Nome do item *</label>
-        <input type="text" id="inv-name" value="${escapeHtml(item?.name || '')}" placeholder="Ex: Chocolate ao leite" required>
+        <input type="text" id="inv-name" value="${escapeHtml(item?.name || '')}" placeholder="Ex: Nutella" required>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Categoria</label>
+          <select id="inv-category">
+            ${categories.map(([val, label]) => `<option value="${val}" ${currentCat === val ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </div>
         <div class="form-group">
           <label>Unidade</label>
           <select id="inv-unit">
             ${units.map(([val, label]) => `<option value="${val}" ${item?.unit === val ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Quantidade atual</label>
           <input type="number" id="inv-stock" min="0" step="0.01" value="${item?.stock ?? 0}">
+        </div>
+        <div class="form-group">
+          <label>Valor por unidade / kg (R$)</label>
+          <input type="number" id="inv-unit-cost" min="0" step="0.01" placeholder="0,00" value="${item?.unitCost ?? 0}">
         </div>
       </div>
       <div class="form-row">
@@ -3177,12 +3285,23 @@ function openInventoryItemModal(item = null) {
         </div>
         <div class="form-group">
           <label>Observação</label>
-          <input type="text" id="inv-notes" value="${escapeHtml(item?.notes || '')}" placeholder="Ex: Comprar no Atacadão">
+          <input type="text" id="inv-notes" value="${escapeHtml(item?.notes || '')}" placeholder="Ex: Precisa comprar">
         </div>
       </div>
+      <p class="form-hint" id="inv-total-preview">Total estimado: ${Storage.formatCurrency(inventoryTotalValue(item || { stock: 0, unitCost: 0 }))}</p>
       <button type="submit" class="btn btn--primary">${isEdit ? 'Salvar' : 'Cadastrar'}</button>
     </form>
   `);
+
+  const refreshPreview = () => {
+    const preview = document.getElementById('inv-total-preview');
+    if (!preview) return;
+    const stock = Number(document.getElementById('inv-stock')?.value) || 0;
+    const unitCost = Number(document.getElementById('inv-unit-cost')?.value) || 0;
+    preview.textContent = `Total estimado: ${Storage.formatCurrency(stock * unitCost)}`;
+  };
+  document.getElementById('inv-stock')?.addEventListener('input', refreshPreview);
+  document.getElementById('inv-unit-cost')?.addEventListener('input', refreshPreview);
 
   document.getElementById('inventory-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3192,10 +3311,15 @@ function openInventoryItemModal(item = null) {
       return;
     }
     const minRaw = document.getElementById('inv-min').value.trim();
+    const stock = Number(document.getElementById('inv-stock').value) || 0;
+    const unitCost = Number(document.getElementById('inv-unit-cost').value) || 0;
     const payload = {
       name,
+      category: document.getElementById('inv-category').value,
       unit: document.getElementById('inv-unit').value,
-      stock: Number(document.getElementById('inv-stock').value) || 0,
+      stock,
+      unitCost,
+      totalValue: Math.round(stock * unitCost * 100) / 100,
       notes: document.getElementById('inv-notes').value.trim(),
       minStock: minRaw === '' ? null : Number(minRaw),
     };
@@ -3224,6 +3348,7 @@ function editInventoryItem(id) {
 async function saveInventoryItemQuick(id) {
   const item = (Storage.getInventoryItems?.() || []).find((row) => row.id === id);
   const stockInput = document.getElementById(`inv-stock-${id}`);
+  const costInput = document.getElementById(`inv-cost-${id}`);
   const minInput = document.getElementById(`inv-min-${id}`);
   if (!item || !stockInput) return;
 
@@ -3232,10 +3357,17 @@ async function saveInventoryItemQuick(id) {
     showToast('Quantidade inválida.', 'error');
     return;
   }
+  const unitCost = Number(costInput?.value);
+  if (!Number.isFinite(unitCost) || unitCost < 0) {
+    showToast('Valor unitário inválido.', 'error');
+    return;
+  }
   const minRaw = String(minInput?.value || '').trim();
   const payload = {
     ...item,
     stock,
+    unitCost,
+    totalValue: Math.round(stock * unitCost * 100) / 100,
     minStock: minRaw === '' ? null : Number(minRaw),
   };
 
@@ -3261,9 +3393,49 @@ async function deleteInventoryItem(id) {
   }
 }
 
+async function seedDefaultInventory() {
+  const seed = Storage.defaultInventorySeed?.() || [];
+  if (!seed.length) return;
+  const existing = Storage.getInventoryItems?.() || [];
+  const byName = new Set(existing.map((row) => String(row.name || '').trim().toLowerCase()));
+  const missing = seed.filter((row) => !byName.has(String(row.name).trim().toLowerCase()));
+  if (!missing.length) {
+    showToast('A lista padrão já está cadastrada. Preencha os valores em R$ / un.', 'info');
+    return;
+  }
+  if (!confirm(`Cadastrar ${missing.length} item(ns) da lista padrão (Recheios, Produção e Embalagens)?\n\nDepois preencha o valor de cada um em R$ / un.`)) {
+    return;
+  }
+  let ok = 0;
+  let fail = 0;
+  for (const row of missing) {
+    const result = await Storage.saveInventoryItemAsync({
+      ...row,
+      unitCost: Number(row.unitCost) || 0,
+    });
+    if (result?.ok) ok += 1;
+    else fail += 1;
+  }
+  renderInventoryItems();
+  if (fail) showToast(`Cadastrados ${ok}. Falharam ${fail}.`, 'error');
+  else showToast(`${ok} insumos cadastrados! Agora informe o R$ / un de cada item.`, 'success');
+}
+
 function initInventoryPage() {
   document.getElementById('btn-new-inventory-item')?.addEventListener('click', () => openInventoryItemModal());
+  document.getElementById('btn-seed-inventory')?.addEventListener('click', () => seedDefaultInventory());
   document.getElementById('inventory-filter')?.addEventListener('change', renderInventoryItems);
+  document.getElementById('inventory-table')?.addEventListener('input', (e) => {
+    const input = e.target.closest('.stock-input');
+    if (!input) return;
+    const row = input.closest('[data-inventory-id]');
+    const id = row?.dataset.inventoryId;
+    if (!id) return;
+    const stock = Number(document.getElementById(`inv-stock-${id}`)?.value) || 0;
+    const cost = Number(document.getElementById(`inv-cost-${id}`)?.value) || 0;
+    const totalEl = document.getElementById(`inv-total-${id}`);
+    if (totalEl) totalEl.textContent = Storage.formatCurrency(stock * cost);
+  });
   document.getElementById('inventory-table')?.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || !e.target.matches('.stock-input')) return;
     e.preventDefault();
@@ -3358,6 +3530,13 @@ function initSettings() {
   document.getElementById('set-sobre-image').value = s.sobreImage || '';
   document.getElementById('set-whatsapp').value = s.whatsapp || '';
   document.getElementById('set-email').value = s.email || '';
+  const brandDefaultsEarly = (typeof BRAND_DEFAULTS !== 'undefined' && BRAND_DEFAULTS) ? BRAND_DEFAULTS : {};
+  const pixKeyEl = document.getElementById('set-pix-key');
+  if (pixKeyEl) pixKeyEl.value = s.pixKey || brandDefaultsEarly.pixKey || '27999634430';
+  const pixNameEl = document.getElementById('set-pix-name');
+  if (pixNameEl) pixNameEl.value = s.pixName || brandDefaultsEarly.pixName || 'Beatriz Ferreira';
+  const pixBankEl = document.getElementById('set-pix-bank');
+  if (pixBankEl) pixBankEl.value = s.pixBank || brandDefaultsEarly.pixBank || 'Nubank';
   document.getElementById('set-instagram').value = s.instagram || '';
   document.getElementById('set-instagram-user').value = s.instagramUser || '';
   document.getElementById('set-address').value = s.address || '';
@@ -3430,6 +3609,9 @@ function initSettings() {
       sobreImage: document.getElementById('set-sobre-image').value.trim(),
       whatsapp: document.getElementById('set-whatsapp').value.trim(),
       email: document.getElementById('set-email').value.trim(),
+      pixKey: document.getElementById('set-pix-key')?.value.trim() || '27999634430',
+      pixName: document.getElementById('set-pix-name')?.value.trim() || 'Beatriz Ferreira',
+      pixBank: document.getElementById('set-pix-bank')?.value.trim() || 'Nubank',
       instagram: document.getElementById('set-instagram').value.trim(),
       instagramUser: document.getElementById('set-instagram-user').value.trim(),
       address: document.getElementById('set-address').value.trim(),

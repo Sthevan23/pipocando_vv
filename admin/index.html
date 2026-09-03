@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=6">
+  <link rel="stylesheet" href="admin.css?v=7">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -183,29 +183,46 @@
 
     <!-- Estoque (insumos) -->
     <section class="admin-page" id="page-estoque">
-      <p class="fin-note"><i class="fas fa-carrot"></i> Controle de <strong>insumos</strong> da cozinha — ex.: chocolate, leite condensado, embalagens. Use para saber o que precisa comprar.</p>
+      <p class="fin-note"><i class="fas fa-carrot"></i> Controle de <strong>insumos</strong> da cozinha. Informe a quantidade e o <strong>valor por kg/unidade</strong> — o total investido é calculado automaticamente.</p>
       <div class="stock-summary" id="inventory-summary"></div>
+      <div class="stock-spend" id="inventory-spend"></div>
       <div class="page-actions stock-toolbar">
         <label class="stock-filter">
           <span>Filtrar</span>
           <select id="inventory-filter" class="form-control">
             <option value="all">Todos os itens</option>
+            <option value="recheios">Recheios</option>
+            <option value="producao">Produção</option>
+            <option value="embalagens">Embalagens</option>
             <option value="low">Estoque baixo</option>
-            <option value="out">Zerados</option>
+            <option value="out">Zerados / comprar</option>
           </select>
         </label>
-        <button type="button" class="btn btn--primary" id="btn-new-inventory-item"><i class="fas fa-plus"></i> Novo insumo</button>
+        <div class="stock-toolbar__actions">
+          <button type="button" class="btn btn--secondary" id="btn-seed-inventory" title="Cadastra a lista padrão de materiais"><i class="fas fa-list"></i> Carregar lista padrão</button>
+          <button type="button" class="btn btn--primary" id="btn-new-inventory-item"><i class="fas fa-plus"></i> Novo insumo</button>
+        </div>
       </div>
       <div class="card">
         <div class="table-responsive">
-          <table class="table" id="inventory-table">
+          <table class="table table--inventory" id="inventory-table">
             <thead>
-              <tr><th>Item</th><th>Unidade</th><th>Quantidade</th><th>Alerta mín.</th><th>Situação</th><th>Ações</th></tr>
+              <tr>
+                <th>Item</th>
+                <th>Categoria</th>
+                <th>Unidade</th>
+                <th>Quantidade</th>
+                <th>R$ / un</th>
+                <th>Total</th>
+                <th>Alerta mín.</th>
+                <th>Situação</th>
+                <th>Ações</th>
+              </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
-        <p class="fin-empty" id="inventory-empty" hidden>Nenhum insumo cadastrado. Clique em Novo insumo.</p>
+        <p class="fin-empty" id="inventory-empty" hidden>Nenhum insumo cadastrado. Clique em <strong>Carregar lista padrão</strong> ou em Novo insumo.</p>
       </div>
     </section>
 
@@ -452,6 +469,26 @@
               <input type="email" id="set-email">
             </div>
           </div>
+
+          <div class="settings-block">
+            <h4 class="settings-block__title">Pix (recebimento)</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="set-pix-key">Chave Pix</label>
+                <input type="text" id="set-pix-key" placeholder="27999634430" inputmode="numeric">
+              </div>
+              <div class="form-group">
+                <label for="set-pix-name">Nome do recebedor</label>
+                <input type="text" id="set-pix-name" placeholder="Beatriz Ferreira">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="set-pix-bank">Banco</label>
+              <input type="text" id="set-pix-bank" placeholder="Nubank">
+            </div>
+            <small class="form-hint">Aparece no carrinho quando o cliente escolhe Pix e na mensagem do WhatsApp.</small>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="set-instagram">Instagram (link)</label>
@@ -637,13 +674,13 @@
   <div class="toast-admin" id="toast-admin"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="../js/brand-config.js?v=2"></script>
+  <script src="../js/brand-config.js?v=3"></script>
   <script src="../js/pipoca-config.js?v=1"></script>
-  <script src="../js/default-data.js?v=3"></script>
+  <script src="../js/default-data.js?v=6"></script>
   <script src="../js/product-photos.js?v=2"></script>
-  <script src="../js/storage.js?v=14"></script>
+  <script src="../js/storage.js?v=15"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=10"></script>
+  <script src="admin.js?v=12"></script>
 </body>
 </html>
 

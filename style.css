@@ -4204,6 +4204,58 @@ html.is-lightbox-open .hero__bg-layer--near {
   line-height: 1.35;
 }
 
+.pix-details {
+  margin: 0.65rem 0 0;
+  padding: 0.7rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-pink, #e85a8c) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-pink, #e85a8c) 28%, var(--color-line, #e8dce2));
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.pix-details[hidden] {
+  display: none !important;
+}
+
+.pix-details__title {
+  margin: 0 0 0.45rem;
+  font-weight: 700;
+  color: var(--color-ink, #2a1a22);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pix-details > p {
+  margin: 0.2rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+}
+
+.pix-details > p > span {
+  color: #7a5a66;
+  min-width: 3.2rem;
+}
+
+.pix-details > p > strong {
+  font-weight: 700;
+  color: var(--color-ink, #2a1a22);
+  word-break: break-all;
+}
+
+.pix-details__key {
+  margin-top: 0.35rem !important;
+}
+
+.pix-details__key .btn {
+  margin-left: auto;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+}
+
 .cart-summary__row {
   display: flex;
   justify-content: space-between;

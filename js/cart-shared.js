@@ -334,10 +334,29 @@ window.AuroraCart = (() => {
     return 'Pix';
   }
 
+  function getPixInfo() {
+    const s = typeof Storage !== 'undefined' ? Storage.getSettings() : {};
+    const d = (typeof BRAND_DEFAULTS !== 'undefined' && BRAND_DEFAULTS) ? BRAND_DEFAULTS : {};
+    return {
+      key: String(s.pixKey || d.pixKey || '27999634430').trim(),
+      name: String(s.pixName || d.pixName || 'Beatriz Ferreira').trim(),
+      bank: String(s.pixBank || d.pixBank || 'Nubank').trim(),
+    };
+  }
+
   function paymentWhatsAppLine(value) {
     const label = paymentLabel(value);
     if (value === 'cartao') {
       return `${label}\nObs.: taxa do cartão repassada ao cliente.`;
+    }
+    if (value === 'pix' || !value) {
+      const pix = getPixInfo();
+      return (
+        `${label}\n` +
+        `Nome: ${pix.name}\n` +
+        `Banco: ${pix.bank}\n` +
+        `Chave Pix: ${pix.key}`
+      );
     }
     return label;
   }
@@ -433,7 +452,7 @@ window.AuroraCart = (() => {
     addItem, updateQty, removeItem, clear, zeroPriceItems, repairItemPrices, repairItemImages, repairCartItems,
     getCoupon, setCoupon, refreshCoupon, resolveLiveCoupon,
     loadCustomer, saveCustomer, getFulfillment, setFulfillment,
-    getPayment, setPayment, paymentLabel, paymentWhatsAppLine,
+    getPayment, setPayment, paymentLabel, paymentWhatsAppLine, getPixInfo,
     getDeliveryFee, resolveDelivery, getDeliveryNote, formatMoney, formatPhoneBR,
     buildWhatsAppMessage, syncFromStorage,
   };

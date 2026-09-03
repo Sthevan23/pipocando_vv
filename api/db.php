@@ -234,24 +234,28 @@ function aurora_ensure_inventory_items_table(PDO $pdo): void {
     "SELECT 1 FROM information_schema.TABLES
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventory_items' LIMIT 1"
   )->fetchColumn();
-  if ($exists) {
-    return;
+  if (!$exists) {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS `inventory_items` (
+        `id` VARCHAR(64) NOT NULL,
+        `name` VARCHAR(190) NOT NULL,
+        `category` VARCHAR(40) NOT NULL DEFAULT 'outros',
+        `unit` VARCHAR(30) NOT NULL DEFAULT 'un',
+        `stock` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        `unit_cost` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Valor por unidade/kg',
+        `min_stock` DECIMAL(10,2) DEFAULT NULL COMMENT 'Alerta quando atingir',
+        `notes` VARCHAR(255) DEFAULT NULL,
+        `sort_order` INT NOT NULL DEFAULT 0,
+        `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_inventory_name` (`name`),
+        KEY `idx_inventory_category` (`category`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
   }
-  $pdo->exec(
-    "CREATE TABLE IF NOT EXISTS `inventory_items` (
-      `id` VARCHAR(64) NOT NULL,
-      `name` VARCHAR(190) NOT NULL,
-      `unit` VARCHAR(30) NOT NULL DEFAULT 'un',
-      `stock` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-      `min_stock` DECIMAL(10,2) DEFAULT NULL COMMENT 'Alerta quando atingir',
-      `notes` VARCHAR(255) DEFAULT NULL,
-      `sort_order` INT NOT NULL DEFAULT 0,
-      `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      PRIMARY KEY (`id`),
-      KEY `idx_inventory_name` (`name`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-  );
+  aurora_ensure_column($pdo, 'inventory_items', 'category', "VARCHAR(40) NOT NULL DEFAULT 'outros'");
+  aurora_ensure_column($pdo, 'inventory_items', 'unit_cost', "DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Valor por unidade/kg'");
 }
 
 function aurora_ensure_column(PDO $pdo, string $table, string $column, string $definition): void {
