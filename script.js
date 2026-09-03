@@ -804,9 +804,10 @@ function getAdminUrl() {
 function getBrandSettings() {
   const s = Storage.getSettings() || {};
   const d = window.BRAND_DEFAULTS || {};
-  const words = Array.isArray(s.heroWords) && s.heroWords.length
-    ? s.heroWords
-    : (Array.isArray(d.heroWords) ? d.heroWords : ['doce', 'especial', 'irresistível']);
+  const words = normalizeHeroWords(
+    s.heroWords,
+    normalizeHeroWords(d.heroWords, ['doce', 'especial', 'irresistível'])
+  );
   const marquee = Array.isArray(s.marqueeItems) && s.marqueeItems.length
     ? s.marqueeItems
     : (Array.isArray(d.marqueeItems) ? d.marqueeItems : []);
@@ -3171,8 +3172,26 @@ function initContactForm() {
   });
 }
 
+let heroWordsTimer = null;
+
+function normalizeHeroWords(value, fallback = ['doce', 'especial', 'irresistível']) {
+  if (Array.isArray(value)) {
+    const list = value.map((w) => String(w || '').trim()).filter(Boolean);
+    return list.length ? list : fallback;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const list = value.split(',').map((w) => w.trim()).filter(Boolean);
+    return list.length ? list : fallback;
+  }
+  return fallback;
+}
+
 function initHeroWords() {
   const root = document.getElementById('hero-words');
+  if (heroWordsTimer) {
+    clearInterval(heroWordsTimer);
+    heroWordsTimer = null;
+  }
   if (!root) return;
   const words = [...root.querySelectorAll('span')];
   if (words.length < 2) return;
@@ -3180,14 +3199,17 @@ function initHeroWords() {
   let index = words.findIndex((w) => w.classList.contains('is-active'));
   if (index < 0) index = 0;
   words.forEach((w, i) => w.classList.toggle('is-active', i === index));
+  const sr = document.getElementById('hero-sr-word');
+  if (sr) sr.textContent = words[index].textContent;
 
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) return;
 
-  setInterval(() => {
+  heroWordsTimer = setInterval(() => {
     words[index].classList.remove('is-active');
     index = (index + 1) % words.length;
     words[index].classList.add('is-active');
+    if (sr) sr.textContent = words[index].textContent;
   }, 2200);
 }
 
@@ -3208,12 +3230,12 @@ function mountSite({ withInit = false } = {}) {
   renderFilters();
   renderProducts();
   renderGallery();
+  initHeroWords();
   if (!withInit) return;
   initHeader();
   initLightbox();
   initCart();
   initContactForm();
-  initHeroWords();
   initParallax();
   initOrderTracker();
 }
