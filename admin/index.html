@@ -562,9 +562,14 @@
               <input type="number" id="set-delivery-fee" min="0" step="0.5" value="5" inputmode="decimal">
             </div>
             <div class="form-group">
-              <label for="set-delivery-note">Observação do frete</label>
-              <input type="text" id="set-delivery-note" placeholder="Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5">
+              <label for="set-delivery-radius">Raio máximo de entrega (km)</label>
+              <input type="number" id="set-delivery-radius" min="1" max="50" step="0.5" value="7" inputmode="decimal">
             </div>
+          </div>
+          <div class="form-group">
+            <label for="set-delivery-note">Observação do frete</label>
+            <input type="text" id="set-delivery-note" placeholder="Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5">
+            <small class="form-hint">Centro do raio: Rua Burarama, 168 — Cobilândia. O carrinho bloqueia pedidos fora desse raio.</small>
           </div>
           <div class="form-group">
             <label for="set-site-url">URL do site</label>
@@ -676,11 +681,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="../js/brand-config.js?v=3"></script>
   <script src="../js/pipoca-config.js?v=1"></script>
-  <script src="../js/default-data.js?v=6"></script>
+  <script src="../js/default-data.js?v=7"></script>
   <script src="../js/product-photos.js?v=2"></script>
   <script src="../js/storage.js?v=15"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=12"></script>
+  <script src="admin.js?v=13"></script>
 </body>
 </html>
 

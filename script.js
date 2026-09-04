@@ -188,6 +188,89 @@ function setCartCity(cityId) {
   });
 }
 
+let cartDistanceTimer = null;
+let cartDistanceState = null; // { checked, inRange, km, message, address }
+
+function getDeliveryRadiusKm() {
+  const s = Storage.getSettings?.() || {};
+  const n = Number(s.deliveryRadiusKm);
+  if (Number.isFinite(n) && n > 0) return n;
+  return window.PipocandoDelivery?.DEFAULT_RADIUS_KM || 7;
+}
+
+function setCartDistanceUI(state) {
+  cartDistanceState = state;
+  const el = document.getElementById('cart-distance');
+  if (!el) return;
+  if (!state || !state.message) {
+    el.hidden = true;
+    el.textContent = '';
+    el.className = 'cart-distance';
+    return;
+  }
+  el.hidden = false;
+  el.textContent = state.message;
+  el.className = 'cart-distance';
+  if (state.checking) el.classList.add('cart-distance--pending');
+  else if (state.inRange === true) el.classList.add('cart-distance--ok');
+  else if (state.inRange === false) el.classList.add('cart-distance--out');
+  else el.classList.add('cart-distance--warn');
+}
+
+function isDeliveryInRangeForCheckout() {
+  const address = getCartAddressForFee();
+  if (address.length < 8) return false;
+  if (!cartDistanceState?.checked) return false;
+  return cartDistanceState.inRange === true;
+}
+
+async function verifyCartDeliveryDistance(addressOverride) {
+  const address = String(addressOverride ?? getCartAddressForFee()).trim();
+  const radiusKm = getDeliveryRadiusKm();
+  if (address.length < 8) {
+    PipocandoDelivery?.clearDistance?.();
+    setCartDistanceUI({
+      checked: false,
+      inRange: null,
+      message: `Informe rua, número e bairro para validar o raio de ${radiusKm} km.`,
+    });
+    return cartDistanceState;
+  }
+  if (!window.PipocandoDelivery?.checkDistance) {
+    setCartDistanceUI(null);
+    return null;
+  }
+  setCartDistanceUI({
+    checking: true,
+    checked: false,
+    inRange: null,
+    message: 'Calculando distância…',
+  });
+  try {
+    const result = await PipocandoDelivery.checkDistance(address);
+    setCartDistanceUI({
+      ...result,
+      address,
+    });
+    scheduleRenderCartUI();
+    return result;
+  } catch (_) {
+    setCartDistanceUI({
+      checked: false,
+      inRange: null,
+      message: 'Não foi possível calcular a distância. Tente de novo em alguns segundos.',
+    });
+    return cartDistanceState;
+  }
+}
+
+function scheduleCartDistanceCheck() {
+  if (cartDistanceTimer) clearTimeout(cartDistanceTimer);
+  cartDistanceTimer = setTimeout(() => {
+    verifyCartDeliveryDistance();
+  }, 700);
+}
+
 function syncFulfillmentUI() {
   const zonesWrap = document.getElementById('cart-zones');
   const zoneStatus = document.getElementById('cart-zone-status');
@@ -196,16 +279,26 @@ function syncFulfillmentUI() {
   const checkoutOpen = !document.getElementById('cart-checkout')?.hidden;
   const hasItems = cartItems.length > 0 && checkoutOpen;
   const delivery = resolveDeliveryForCart();
+  const radiusKm = getDeliveryRadiusKm();
 
   setCartCity(getCartCityId());
 
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
-    if (hasItems && delivery.known) {
-      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — já incluído no total`;
+    if (hasItems && cartDistanceState?.inRange === false) {
+      zoneStatus.textContent = `Fora do raio de ${radiusKm} km — não entregamos neste endereço.`;
+      zoneStatus.hidden = false;
+    } else if (hasItems && delivery.known && cartDistanceState?.inRange === true) {
+      const dist = cartDistanceState.km != null
+        ? ` · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`
+        : '';
+      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}${dist}`;
+      zoneStatus.hidden = false;
+    } else if (hasItems && delivery.known) {
+      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — confirme o endereço abaixo`;
       zoneStatus.hidden = false;
     } else if (hasItems) {
-      zoneStatus.textContent = 'Toque na sua cidade para calcular o frete.';
+      zoneStatus.textContent = `Toque na cidade e informe o endereço (raio máx. ${radiusKm} km).`;
       zoneStatus.hidden = false;
     } else {
       zoneStatus.hidden = true;
@@ -213,8 +306,8 @@ function syncFulfillmentUI() {
   }
   if (addressHint) {
     addressHint.textContent = delivery.known
-      ? `Endereço em ${delivery.label} — frete ${Storage.formatCurrency(delivery.fee)}`
-      : 'Toque na cidade acima ou escreva Vila Velha, Vitória ou Cariacica no endereço.';
+      ? `Endereço em ${delivery.label} — entregamos até ${radiusKm} km da loja`
+      : `Digite o CEP para buscar rua e bairro (até ${radiusKm} km da Cobilândia).`;
   }
   if (addressWrap) addressWrap.hidden = !hasItems;
 }
@@ -260,10 +353,13 @@ function syncCartCityFromAddress() {
 function fulfillmentWhatsAppBlock(_mode, address = '') {
   const addr = String(address || '').trim();
   const delivery = resolveDeliveryForCart();
+  const dist = cartDistanceState?.inRange === true && cartDistanceState.km != null
+    ? `\nDistância: ≈ ${String(cartDistanceState.km).replace('.', ',')} km (raio ${getDeliveryRadiusKm()} km)`
+    : '';
   if (delivery.known) {
     return (
       `FORMA: Entrega\n` +
-      `Entrega ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}\n` +
+      `Entrega ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}${dist}\n` +
       `Endereço: ${addr}`
     );
   }
@@ -285,7 +381,9 @@ function getDeliveryFee() {
 
 function getDeliveryNote() {
   const note = String(Storage.getSettings()?.deliveryNote || '').trim();
-  return note || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+  if (note) return note;
+  if (window.PipocandoDelivery?.zonesSummaryText) return PipocandoDelivery.zonesSummaryText();
+  return `Entrega em até ${getDeliveryRadiusKm()} km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5`;
 }
 
 function formatDeliveryFeeText() {
@@ -318,35 +416,137 @@ function saveAppliedCoupon(coupon) {
   scheduleRenderCartUI();
 }
 
+function emptyCustomer() {
+  return {
+    nome: '', sobrenome: '', phone: '', address: '', city: '',
+    cep: '', street: '', number: '', neighborhood: '', complement: '',
+  };
+}
+
 function loadCustomer() {
   try {
     const raw = localStorage.getItem(CUSTOMER_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (!parsed || typeof parsed !== 'object') {
-      return { nome: '', sobrenome: '', phone: '', address: '', city: '' };
-    }
+    if (!parsed || typeof parsed !== 'object') return emptyCustomer();
     return {
       nome: String(parsed.nome || '').trim(),
       sobrenome: String(parsed.sobrenome || '').trim(),
       phone: String(parsed.phone || '').replace(/\D/g, ''),
       address: String(parsed.address || '').trim(),
       city: String(parsed.city || '').trim(),
+      cep: String(parsed.cep || '').replace(/\D/g, '').slice(0, 8),
+      street: String(parsed.street || '').trim(),
+      number: String(parsed.number || '').trim(),
+      neighborhood: String(parsed.neighborhood || '').trim(),
+      complement: String(parsed.complement || '').trim(),
     };
   } catch {
-    return { nome: '', sobrenome: '', phone: '', address: '' };
+    return emptyCustomer();
   }
 }
 
-function saveCustomer({ nome, sobrenome, phone, address, city } = {}) {
+function formatCepBR(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+function composeCartAddress({ street, number, complement, neighborhood, cityLabel } = {}) {
+  const parts = [];
+  const rua = String(street || '').trim();
+  const num = String(number || '').trim();
+  const comp = String(complement || '').trim();
+  const bairro = String(neighborhood || '').trim();
+  const cidade = String(cityLabel || '').trim();
+  if (rua) parts.push(num ? `${rua}, ${num}` : rua);
+  if (comp) parts.push(comp);
+  if (bairro) parts.push(bairro);
+  if (cidade) parts.push(cidade);
+  return parts.join(' — ').slice(0, 280);
+}
+
+function syncComposedCartAddress() {
+  const street = document.getElementById('cart-street')?.value.trim() || '';
+  const number = document.getElementById('cart-number')?.value.trim() || '';
+  const complement = document.getElementById('cart-complement')?.value.trim() || '';
+  const neighborhood = document.getElementById('cart-neighborhood')?.value.trim() || '';
+  const cityId = getCartCityId();
+  const cityLabel = window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.label
+    || ({ vila_velha: 'Vila Velha', vitoria: 'Vitória', cariacica: 'Cariacica' }[cityId] || '');
+  const composed = composeCartAddress({ street, number, complement, neighborhood, cityLabel });
+  const hidden = document.getElementById('cart-address');
+  if (hidden) hidden.value = composed;
+  return composed;
+}
+
+function cityIdFromViaCepLocalidade(localidade) {
+  const n = String(localidade || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (n.includes('vitoria')) return 'vitoria';
+  if (n.includes('cariacica')) return 'cariacica';
+  if (n.includes('vila velha')) return 'vila_velha';
+  return '';
+}
+
+let cepLookupToken = 0;
+
+async function lookupCartCep(rawCep) {
+  const cep = String(rawCep || '').replace(/\D/g, '').slice(0, 8);
+  const hint = document.getElementById('cart-address-hint');
+  if (cep.length !== 8) {
+    if (hint) hint.textContent = 'Digite o CEP completo (8 dígitos) para buscar rua e bairro.';
+    return null;
+  }
+  const token = ++cepLookupToken;
+  if (hint) hint.textContent = 'Buscando endereço pelo CEP…';
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const data = await res.json();
+    if (token !== cepLookupToken) return null;
+    if (!data || data.erro) {
+      if (hint) hint.textContent = 'CEP não encontrado. Confira os números ou preencha a rua manualmente.';
+      return null;
+    }
+    const streetEl = document.getElementById('cart-street');
+    const neighborhoodEl = document.getElementById('cart-neighborhood');
+    if (streetEl) streetEl.value = data.logradouro || streetEl.value || '';
+    if (neighborhoodEl) neighborhoodEl.value = data.bairro || neighborhoodEl.value || '';
+    const cityId = cityIdFromViaCepLocalidade(data.localidade);
+    if (cityId) setCartCity(cityId);
+    syncComposedCartAddress();
+    if (hint) {
+      hint.textContent = streetEl?.value
+        ? 'Endereço encontrado! Agora informe só o número.'
+        : 'CEP encontrado. Informe a rua e o número.';
+    }
+    document.getElementById('cart-number')?.focus();
+    scheduleCartDistanceCheck();
+    scheduleRenderCartUI();
+    return data;
+  } catch (_) {
+    if (token !== cepLookupToken) return null;
+    if (hint) hint.textContent = 'Não foi possível buscar o CEP agora. Preencha rua e bairro manualmente.';
+    return null;
+  }
+}
+
+function saveCustomer(patch = {}) {
   const prev = loadCustomer();
   const data = {
-    nome: String(nome !== undefined ? nome : prev.nome).trim(),
-    sobrenome: String(sobrenome !== undefined ? sobrenome : prev.sobrenome).trim(),
-    phone: String(phone !== undefined ? phone : prev.phone).replace(/\D/g, '').slice(0, 11),
-    address: String(address !== undefined ? address : prev.address).trim().slice(0, 280),
-    city: String(city !== undefined ? city : prev.city).trim(),
+    nome: String(patch.nome !== undefined ? patch.nome : prev.nome).trim(),
+    sobrenome: String(patch.sobrenome !== undefined ? patch.sobrenome : prev.sobrenome).trim(),
+    phone: String(patch.phone !== undefined ? patch.phone : prev.phone).replace(/\D/g, '').slice(0, 11),
+    address: String(patch.address !== undefined ? patch.address : prev.address).trim().slice(0, 280),
+    city: String(patch.city !== undefined ? patch.city : prev.city).trim(),
+    cep: String(patch.cep !== undefined ? patch.cep : prev.cep).replace(/\D/g, '').slice(0, 8),
+    street: String(patch.street !== undefined ? patch.street : prev.street).trim().slice(0, 120),
+    number: String(patch.number !== undefined ? patch.number : prev.number).trim().slice(0, 20),
+    neighborhood: String(patch.neighborhood !== undefined ? patch.neighborhood : prev.neighborhood).trim().slice(0, 80),
+    complement: String(patch.complement !== undefined ? patch.complement : prev.complement).trim().slice(0, 80),
   };
-  if (!data.nome && !data.sobrenome && !data.phone && !data.address && !data.city) return;
+  if (!data.nome && !data.sobrenome && !data.phone && !data.address && !data.city && !data.cep) return;
   localStorage.setItem(CUSTOMER_KEY, JSON.stringify(data));
 }
 
@@ -359,12 +559,18 @@ function readCustomerFromLightbox() {
 }
 
 function readCustomerFromCart() {
+  const address = syncComposedCartAddress();
   return {
     nome: document.getElementById('cart-nome')?.value.trim() || '',
     sobrenome: document.getElementById('cart-sobrenome')?.value.trim() || '',
     phone: document.getElementById('cart-phone')?.value || '',
-    address: document.getElementById('cart-address')?.value.trim() || '',
-    city: document.getElementById('cart-city')?.value.trim() || '',
+    address,
+    city: getCartCityId(),
+    cep: String(document.getElementById('cart-cep')?.value || '').replace(/\D/g, ''),
+    street: document.getElementById('cart-street')?.value.trim() || '',
+    number: document.getElementById('cart-number')?.value.trim() || '',
+    neighborhood: document.getElementById('cart-neighborhood')?.value.trim() || '',
+    complement: document.getElementById('cart-complement')?.value.trim() || '',
   };
 }
 
@@ -399,21 +605,30 @@ function fillCustomerFields() {
   const cartNome = document.getElementById('cart-nome');
   const cartSobrenome = document.getElementById('cart-sobrenome');
   const cartPhone = document.getElementById('cart-phone');
-  const cartAddress = document.getElementById('cart-address');
-  const cartCity = document.getElementById('cart-city');
+  const cartCep = document.getElementById('cart-cep');
+  const cartStreet = document.getElementById('cart-street');
+  const cartNumber = document.getElementById('cart-number');
+  const cartNeighborhood = document.getElementById('cart-neighborhood');
+  const cartComplement = document.getElementById('cart-complement');
   if (cartNome) cartNome.value = c.nome;
   if (cartSobrenome) cartSobrenome.value = c.sobrenome;
-  if (cartAddress) cartAddress.value = c.address || '';
-  if (cartCity) {
-    const savedCity = c.city || resolveDeliveryFromAddress(c.address).city || '';
-    setCartCity(savedCity);
-  }
+  if (cartCep) cartCep.value = c.cep ? formatCepBR(c.cep) : '';
+  if (cartStreet) cartStreet.value = c.street || '';
+  if (cartNumber) cartNumber.value = c.number || '';
+  if (cartNeighborhood) cartNeighborhood.value = c.neighborhood || '';
+  if (cartComplement) cartComplement.value = c.complement || '';
+  const savedCity = c.city || resolveDeliveryFromAddress(c.address || c.street).city || '';
+  if (savedCity) setCartCity(savedCity);
+  syncComposedCartAddress();
   if (cartPhone) {
     cartPhone.value = c.phone ? formatPhoneBR(c.phone) : '';
     bindPhoneMask(cartPhone);
   }
 
   syncFulfillmentUI();
+  if ((syncComposedCartAddress() || '').trim().length >= 8) {
+    scheduleCartDistanceCheck();
+  }
   updateCustomerSummary();
 
   const acc = document.getElementById('acc-customer');
@@ -987,7 +1202,8 @@ function applySettings() {
   }
   const contactDeliveryNote = document.getElementById('contact-delivery-note');
   if (contactDeliveryNote) {
-    contactDeliveryNote.textContent = 'Taxa confirmada no WhatsApp conforme a cidade';
+    contactDeliveryNote.textContent = window.PipocandoDelivery?.radiusNoteText?.()
+      || `Raio a partir da Cobilândia · taxa confirmada no WhatsApp`;
   }
 
   const footerDelivery = document.getElementById('footer-delivery');
@@ -2458,7 +2674,11 @@ async function checkoutCart() {
   }
   const nome = document.getElementById('cart-nome')?.value.trim() || '';
   const sobrenome = document.getElementById('cart-sobrenome')?.value.trim() || '';
-  const address = document.getElementById('cart-address')?.value.trim() || '';
+  const address = syncComposedCartAddress();
+  const street = document.getElementById('cart-street')?.value.trim() || '';
+  const number = document.getElementById('cart-number')?.value.trim() || '';
+  const neighborhood = document.getElementById('cart-neighborhood')?.value.trim() || '';
+  const cep = String(document.getElementById('cart-cep')?.value || '').replace(/\D/g, '');
   const phoneInput = document.getElementById('cart-phone');
   if (phoneInput) phoneInput.value = formatPhoneBR(phoneInput.value);
   const phone = normalizePhoneBR(phoneInput?.value || '');
@@ -2494,12 +2714,44 @@ async function checkoutCart() {
     phoneInput?.focus();
     return;
   }
+  if (cep && cep.length !== 8) {
+    if (error) {
+      error.textContent = 'Informe um CEP válido com 8 dígitos.';
+      error.hidden = false;
+    }
+    document.getElementById('cart-cep')?.focus();
+    return;
+  }
+  if (!street) {
+    if (error) {
+      error.textContent = 'Informe a rua. Digite o CEP para buscar automaticamente.';
+      error.hidden = false;
+    }
+    document.getElementById('cart-street')?.focus();
+    return;
+  }
+  if (!number) {
+    if (error) {
+      error.textContent = 'Informe o número da casa/apto.';
+      error.hidden = false;
+    }
+    document.getElementById('cart-number')?.focus();
+    return;
+  }
+  if (!neighborhood) {
+    if (error) {
+      error.textContent = 'Informe o bairro.';
+      error.hidden = false;
+    }
+    document.getElementById('cart-neighborhood')?.focus();
+    return;
+  }
   if (address.length < 8) {
     if (error) {
       error.textContent = 'Informe o endereço completo para entrega.';
       error.hidden = false;
     }
-    document.getElementById('cart-address')?.focus();
+    document.getElementById('cart-street')?.focus();
     return;
   }
   const delivery = resolveDeliveryForCart();
@@ -2512,12 +2764,55 @@ async function checkoutCart() {
     return;
   }
 
+  // Valida raio de entrega (7 km por padrão)
+  if (!cartDistanceState?.checked || cartDistanceState.address !== address) {
+    if (btn) btn.disabled = true;
+    if (error) {
+      error.textContent = 'Validando distância do endereço…';
+      error.hidden = false;
+    }
+    const dist = await verifyCartDeliveryDistance(address);
+    if (btn) btn.disabled = false;
+    if (!dist?.checked) {
+      if (error) {
+        error.textContent = dist?.message || 'Não foi possível validar o endereço. Confira rua e número.';
+        error.hidden = false;
+      }
+      document.getElementById('cart-number')?.focus();
+      return;
+    }
+  }
+  if (cartDistanceState?.inRange === false) {
+    if (error) {
+      error.textContent = cartDistanceState.message
+        || `Este endereço está fora do raio de ${getDeliveryRadiusKm()} km de entrega.`;
+      error.hidden = false;
+    }
+    document.getElementById('cart-cep')?.focus();
+    return;
+  }
+  if (cartDistanceState?.inRange !== true) {
+    if (error) {
+      error.textContent = `Confirme um endereço dentro de ${getDeliveryRadiusKm()} km da loja (Cobilândia).`;
+      error.hidden = false;
+    }
+    document.getElementById('cart-number')?.focus();
+    return;
+  }
+
   const payment = Cart?.setPayment?.(
     document.querySelector('input[name="cart-payment"]:checked')?.value || Cart.getPayment()
   ) || document.querySelector('input[name="cart-payment"]:checked')?.value || 'pix';
 
   if (error) error.hidden = true;
-  saveCustomer({ nome, sobrenome, phone, address, city: delivery.city });
+  saveCustomer({
+    ...readCustomerFromCart(),
+    nome,
+    sobrenome,
+    phone,
+    address,
+    city: delivery.city,
+  });
   const fullName = `${nome} ${sobrenome}`;
   const discount = cartDiscount();
   const payable = cartPayable();
@@ -3080,17 +3375,40 @@ function initCart() {
     if (!btn) return;
     const cityId = btn.dataset.city || '';
     setCartCity(cityId);
+    syncComposedCartAddress();
     saveCustomer(readCustomerFromCart());
+    scheduleCartDistanceCheck();
     scheduleRenderCartUI();
   });
-  document.getElementById('cart-address')?.addEventListener('input', () => {
+
+  const onAddressPartChange = () => {
     syncCartCityFromAddress();
+    syncComposedCartAddress();
+    scheduleCartDistanceCheck();
     scheduleRenderCartUI();
+  };
+
+  document.getElementById('cart-cep')?.addEventListener('input', (e) => {
+    const el = e.target;
+    const digits = String(el.value || '').replace(/\D/g, '').slice(0, 8);
+    el.value = formatCepBR(digits);
+    if (digits.length === 8) lookupCartCep(digits);
+    else {
+      const hint = document.getElementById('cart-address-hint');
+      if (hint) hint.textContent = 'Digite o CEP para buscar rua e bairro — falta só o número.';
+    }
   });
-  document.getElementById('cart-address')?.addEventListener('change', () => {
-    syncCartCityFromAddress();
-    saveCustomer(readCustomerFromCart());
-    scheduleRenderCartUI();
+  document.getElementById('cart-cep')?.addEventListener('blur', (e) => {
+    const digits = String(e.target.value || '').replace(/\D/g, '');
+    if (digits.length === 8) lookupCartCep(digits);
+  });
+
+  ['cart-street', 'cart-number', 'cart-neighborhood', 'cart-complement'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', onAddressPartChange);
+    document.getElementById(id)?.addEventListener('change', () => {
+      onAddressPartChange();
+      saveCustomer(readCustomerFromCart());
+    });
   });
   bindPhoneMask(document.getElementById('cart-phone'));
 }

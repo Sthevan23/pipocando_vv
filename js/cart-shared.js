@@ -296,8 +296,12 @@ window.AuroraCart = (() => {
   }
 
   function getDeliveryNote() {
-    if (typeof Storage === 'undefined') return 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
-    return Storage.getSettings()?.deliveryNote || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    if (typeof Storage === 'undefined') {
+      return 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    }
+    return Storage.getSettings()?.deliveryNote
+      || (window.PipocandoDelivery?.zonesSummaryText?.() )
+      || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
   }
 
   function formatMoney(value) {

@@ -3549,8 +3549,14 @@ function initSettings() {
   }
   document.getElementById('set-delivery-fee').value =
     s.deliveryFee != null && s.deliveryFee !== '' ? Number(s.deliveryFee) : 5;
+  const radiusEl = document.getElementById('set-delivery-radius');
+  if (radiusEl) {
+    radiusEl.value = s.deliveryRadiusKm != null && s.deliveryRadiusKm !== ''
+      ? Number(s.deliveryRadiusKm)
+      : 7;
+  }
   document.getElementById('set-delivery-note').value =
-    s.deliveryNote || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    s.deliveryNote || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
   document.getElementById('set-sobre1').value = s.sobreText1 || '';
   document.getElementById('set-sobre2').value = s.sobreText2 || '';
 
@@ -3601,6 +3607,9 @@ function initSettings() {
     const feeRaw = String(document.getElementById('set-delivery-fee').value || '').replace(',', '.');
     let deliveryFee = Number(feeRaw);
     if (!Number.isFinite(deliveryFee) || deliveryFee < 0) deliveryFee = 5;
+    const radiusRaw = String(document.getElementById('set-delivery-radius')?.value || '').replace(',', '.');
+    let deliveryRadiusKm = Number(radiusRaw);
+    if (!Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm < 1) deliveryRadiusKm = 7;
 
     const payload = {
       name: document.getElementById('set-name').value.trim(),
@@ -3624,7 +3633,10 @@ function initSettings() {
       openDays: [...new Set(readScheduleFromForm().flatMap((w) => w.days || []))],
       storeStatus: Storage.getSettings()?.storeStatus || 'auto',
       deliveryFee,
-      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+      deliveryRadiusKm,
+      storeLat: Number(Storage.getSettings()?.storeLat) || -20.3539,
+      storeLng: Number(Storage.getSettings()?.storeLng) || -40.3558,
+      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
       sobreText1: document.getElementById('set-sobre1').value.trim(),
       sobreText2: document.getElementById('set-sobre2').value.trim(),
       brandName: document.getElementById('set-brand-name')?.value.trim() || '',

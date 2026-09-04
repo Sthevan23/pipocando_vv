@@ -10,6 +10,7 @@ function pipocando_brand_keys(): array {
     'brandName', 'brandAccent', 'brandSub', 'slogan', 'heroLine1', 'heroLine2Prefix',
     'heroWords', 'heroCategories', 'placeShort', 'siteUrl', 'adminUrl', 'whatsappOrderMsg', 'whatsappFloatMsg',
     'pixKey', 'pixName', 'pixBank',
+    'deliveryRadiusKm', 'storeLat', 'storeLng',
   ];
 }
 
