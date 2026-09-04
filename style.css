@@ -3090,13 +3090,29 @@ p {
   line-height: 1.35;
 }
 
+.cart-distance-box {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.cart-distance-box[hidden] {
+  display: none !important;
+}
+
 .cart-distance {
-  margin: 0.55rem 0 0;
+  margin: 0;
   padding: 0.55rem 0.7rem;
   border-radius: 10px;
   font-size: 0.82rem;
   font-weight: 650;
   line-height: 1.35;
+}
+
+.cart-distance__wa {
+  width: 100%;
+  justify-content: center;
+  gap: 0.4rem;
 }
 
 .cart-distance--ok {

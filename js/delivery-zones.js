@@ -106,11 +106,23 @@ window.PipocandoDelivery = (() => {
     return `Entregamos em até ${getRadiusKm()} km da loja (Cobilândia, Vila Velha).`;
   }
 
+  function isInEspiritoSanto(lat, lng) {
+    return lat >= -21.45 && lat <= -17.85 && lng >= -42.05 && lng <= -39.35;
+  }
+
+  function isPlausibleNearStore(lat, lng, origin, maxKm = 80) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    if (!isInEspiritoSanto(lat, lng)) return false;
+    const km = haversineKm(origin.lat, origin.lng, lat, lng);
+    return km <= maxKm;
+  }
+
   async function geocodeByCep(cep) {
     const digits = String(cep || '').replace(/\D/g, '').slice(0, 8);
     if (digits.length !== 8) return null;
     const key = `cep:${digits}`;
     if (cache.has(key)) return cache.get(key);
+    const origin = getOrigin();
 
     // BrasilAPI devolve lat/lng do CEP (melhor para o raio)
     try {
@@ -119,7 +131,11 @@ window.PipocandoDelivery = (() => {
         const data = await res.json();
         const lat = Number(data?.location?.coordinates?.latitude);
         const lng = Number(data?.location?.coordinates?.longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) {
+        if (
+          Number.isFinite(lat) && Number.isFinite(lng)
+          && !(lat === 0 && lng === 0)
+          && isPlausibleNearStore(lat, lng, origin, 80)
+        ) {
           const result = {
             lat,
             lng,
@@ -132,16 +148,18 @@ window.PipocandoDelivery = (() => {
       }
     } catch (_) { /* fallback abaixo */ }
 
-    // Fallback: geocode do CEP via proxy Nominatim
+    // Fallback: geocode do CEP via proxy Nominatim (só se plauśivel)
     try {
       const url = `api/geocode.php?cep=${encodeURIComponent(digits)}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (data?.ok && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+        const lat = Number(data.lat);
+        const lng = Number(data.lng);
+        if (data?.ok && isPlausibleNearStore(lat, lng, origin, 80)) {
           const result = {
-            lat: Number(data.lat),
-            lng: Number(data.lng),
+            lat,
+            lng,
             label: data.label || digits,
             source: 'cep',
           };
@@ -257,7 +275,27 @@ window.PipocandoDelivery = (() => {
       return lastDistance;
     }
 
-    const geo = await geocodeAddress(addressOrParts);
+    // Preferir endereço com rua/número; CEP só como reforço
+    let geo = null;
+    if (parts && (hasStreet || hasNumber)) {
+      geo = await geocodeAddress({
+        street: parts.street,
+        number: parts.number,
+        neighborhood: parts.neighborhood,
+        city: parts.city || parts.cityLabel,
+        cep: '', // força busca por rua primeiro
+      });
+      if (geo && !isPlausibleNearStore(geo.lat, geo.lng, origin, 80)) {
+        geo = null;
+      }
+    }
+    if (!geo) {
+      geo = await geocodeAddress(addressOrParts);
+      if (geo && !isPlausibleNearStore(geo.lat, geo.lng, origin, 80)) {
+        geo = null;
+      }
+    }
+
     if (!geo) {
       lastDistance = {
         ok: false,
@@ -266,7 +304,7 @@ window.PipocandoDelivery = (() => {
         km: null,
         radiusKm,
         message: hasNumber
-          ? 'Não localizamos no mapa. Confira CEP, rua e número — ou tente outro CEP próximo.'
+          ? 'Não localizamos no mapa. Confira CEP, rua e número — ou fale no WhatsApp.'
           : 'Informe o número para calcular a distância.',
       };
       return lastDistance;
@@ -283,9 +321,10 @@ window.PipocandoDelivery = (() => {
       radiusKm,
       lat: geo.lat,
       lng: geo.lng,
+      outOfRange: !inRange,
       message: inRange
         ? `≈ ${String(rounded).replace('.', ',')} km da loja${approx} — dentro do raio de ${radiusKm} km`
-        : `Fora da área de entrega (≈ ${String(rounded).replace('.', ',')} km${approx}). Atendemos até ${radiusKm} km.`,
+        : `Este endereço fica a ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Fale no WhatsApp para combinarmos a entrega.`,
     };
     return lastDistance;
   }

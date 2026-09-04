@@ -200,21 +200,58 @@ function getDeliveryRadiusKm() {
 
 function setCartDistanceUI(state) {
   cartDistanceState = state;
+  const box = document.getElementById('cart-distance-box');
   const el = document.getElementById('cart-distance');
+  const waBtn = document.getElementById('cart-distance-wa');
   if (!el) return;
   if (!state || !state.message) {
-    el.hidden = true;
+    if (box) box.hidden = true;
     el.textContent = '';
     el.className = 'cart-distance';
+    if (waBtn) waBtn.hidden = true;
     return;
   }
-  el.hidden = false;
+  if (box) box.hidden = false;
   el.textContent = state.message;
   el.className = 'cart-distance';
   if (state.checking) el.classList.add('cart-distance--pending');
   else if (state.inRange === true) el.classList.add('cart-distance--ok');
   else if (state.inRange === false) el.classList.add('cart-distance--out');
   else el.classList.add('cart-distance--warn');
+
+  if (waBtn) {
+    if (state.inRange === false) {
+      waBtn.hidden = false;
+      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp';
+    } else if (state.checked === false && !state.pending && !state.checking && /não localizamos|nao localizamos/i.test(state.message || '')) {
+      waBtn.hidden = false;
+      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Tirar dúvida no WhatsApp';
+    } else {
+      waBtn.hidden = true;
+    }
+  }
+}
+
+function buildOutOfRangeWhatsAppMessage() {
+  const c = readCustomerFromCart();
+  const addr = syncComposedCartAddress() || c.address || '';
+  const km = cartDistanceState?.km;
+  const radius = getDeliveryRadiusKm();
+  const name = `${c.nome || ''} ${c.sobrenome || ''}`.trim();
+  return (
+    `Olá! 🍿\n` +
+    `Meu endereço fica fora do raio de ${radius} km` +
+    (km != null ? ` (≈ ${String(km).replace('.', ',')} km)` : '') +
+    `.\n\n` +
+    (addr ? `Endereço: ${addr}\n` : '') +
+    (name ? `Nome: ${name}\n` : '') +
+    (c.phone ? `WhatsApp: ${formatPhoneBR(c.phone)}\n` : '') +
+    `\nQueria conversar se dá para combinarmos a entrega 😊`
+  );
+}
+
+function openOutOfRangeWhatsApp() {
+  openWhatsAppChat(buildOutOfRangeWhatsAppMessage());
 }
 
 function isDeliveryInRangeForCheckout() {
@@ -300,7 +337,7 @@ function syncFulfillmentUI() {
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
     if (hasItems && cartDistanceState?.inRange === false) {
-      zoneStatus.textContent = `Fora do raio de ${radiusKm} km — não entregamos neste endereço.`;
+      zoneStatus.textContent = `Fora do raio de ${radiusKm} km — combine a entrega no WhatsApp.`;
       zoneStatus.hidden = false;
     } else if (hasItems && delivery.known && cartDistanceState?.inRange === true) {
       const dist = cartDistanceState.km != null
@@ -2798,11 +2835,10 @@ async function checkoutCart() {
   }
   if (cartDistanceState?.inRange === false) {
     if (error) {
-      error.textContent = cartDistanceState.message
-        || `Este endereço está fora do raio de ${getDeliveryRadiusKm()} km de entrega.`;
+      error.textContent = 'Endereço fora do raio — vamos te direcionar ao WhatsApp para combinar a entrega.';
       error.hidden = false;
     }
-    document.getElementById('cart-cep')?.focus();
+    openOutOfRangeWhatsApp();
     return;
   }
   if (cartDistanceState?.inRange !== true) {
@@ -3423,6 +3459,9 @@ function initCart() {
       onAddressPartChange();
       saveCustomer(readCustomerFromCart());
     });
+  });
+  document.getElementById('cart-distance-wa')?.addEventListener('click', () => {
+    openOutOfRangeWhatsApp();
   });
   bindPhoneMask(document.getElementById('cart-phone'));
 }
