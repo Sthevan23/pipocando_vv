@@ -1,12 +1,18 @@
 <?php
 /**
  * Proxy de geocoding (Nominatim / OpenStreetMap) — Pipocando VV
- * Evita CORS no navegador e limita abuso simples.
+ * Aceita ?q=endereço ou ?cep=29000000
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: public, max-age=3600');
 
+$cep = preg_replace('/\D+/', '', (string) ($_GET['cep'] ?? ''));
 $q = trim((string) ($_GET['q'] ?? ''));
+
+if ($cep !== '' && strlen($cep) === 8) {
+  $q = $cep . ', Espírito Santo, Brasil';
+}
+
 if (mb_strlen($q) < 5) {
   http_response_code(400);
   echo json_encode(['ok' => false, 'error' => 'Endereço muito curto']);
@@ -16,10 +22,12 @@ if (mb_strlen($q) > 280) {
   $q = mb_substr($q, 0, 280);
 }
 
-// Prioriza ES / Vila Velha se a cliente não informar
-$query = $q;
-if (!preg_match('/\b(ES|Esp[ií]rito Santo|Vila Velha|Vit[oó]ria|Cariacica)\b/iu', $query)) {
-  $query .= ', Vila Velha, Espírito Santo, Brasil';
+// Remove complementos que atrapalham (ex.: "CASA")
+$query = preg_replace('/\b(casa|apto|apartamento|bloco|fundos)\b/iu', ' ', $q);
+$query = preg_replace('/\s+/', ' ', trim($query));
+
+if (!preg_match('/\b(ES|Esp[ií]rito Santo|Vila Velha|Vit[oó]ria|Cariacica|Brasil)\b/iu', $query)) {
+  $query .= ', Espírito Santo, Brasil';
 }
 
 $url = 'https://nominatim.openstreetmap.org/search?' . http_build_query([

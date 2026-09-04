@@ -106,8 +106,88 @@ window.PipocandoDelivery = (() => {
     return `Entregamos em até ${getRadiusKm()} km da loja (Cobilândia, Vila Velha).`;
   }
 
-  async function geocodeAddress(address) {
-    const q = String(address || '').trim();
+  async function geocodeByCep(cep) {
+    const digits = String(cep || '').replace(/\D/g, '').slice(0, 8);
+    if (digits.length !== 8) return null;
+    const key = `cep:${digits}`;
+    if (cache.has(key)) return cache.get(key);
+
+    // BrasilAPI devolve lat/lng do CEP (melhor para o raio)
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
+      if (res.ok) {
+        const data = await res.json();
+        const lat = Number(data?.location?.coordinates?.latitude);
+        const lng = Number(data?.location?.coordinates?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) {
+          const result = {
+            lat,
+            lng,
+            label: `${data.street || ''} ${data.neighborhood || ''} ${data.city || ''}`.trim(),
+            source: 'cep',
+          };
+          cache.set(key, result);
+          return result;
+        }
+      }
+    } catch (_) { /* fallback abaixo */ }
+
+    // Fallback: geocode do CEP via proxy Nominatim
+    try {
+      const url = `api/geocode.php?cep=${encodeURIComponent(digits)}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ok && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+          const result = {
+            lat: Number(data.lat),
+            lng: Number(data.lng),
+            label: data.label || digits,
+            source: 'cep',
+          };
+          cache.set(key, result);
+          return result;
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    return null;
+  }
+
+  function buildGeocodeQuery(parts = {}) {
+    const street = String(parts.street || '').trim();
+    const number = String(parts.number || '').trim();
+    const neighborhood = String(parts.neighborhood || '').trim();
+    const city = String(parts.city || parts.cityLabel || '').trim();
+    const cep = String(parts.cep || '').replace(/\D/g, '');
+    const chunks = [];
+    if (street) chunks.push(number ? `${street}, ${number}` : street);
+    if (neighborhood) chunks.push(neighborhood);
+    if (city) chunks.push(city);
+    chunks.push('Espírito Santo');
+    chunks.push('Brasil');
+    if (cep.length === 8) chunks.push(cep);
+    return chunks.join(', ');
+  }
+
+  async function geocodeAddress(addressOrParts) {
+    // Aceita string antiga OU objeto { street, number, neighborhood, city, cep }
+    let q = '';
+    let cep = '';
+    if (addressOrParts && typeof addressOrParts === 'object') {
+      cep = String(addressOrParts.cep || '').replace(/\D/g, '');
+      q = buildGeocodeQuery(addressOrParts);
+    } else {
+      q = String(addressOrParts || '').trim();
+      // Remove complemento tipo "CASA" que atrapalha o mapa
+      q = q.replace(/\s*—\s*casa\b/ig, '').replace(/\bcasa\b/ig, '').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    if (cep.length === 8) {
+      const byCep = await geocodeByCep(cep);
+      if (byCep) return byCep;
+    }
+
     if (q.length < 8) return null;
     const key = normalize(q);
     if (cache.has(key)) return cache.get(key);
@@ -129,17 +209,22 @@ window.PipocandoDelivery = (() => {
     // 2) Photon (Komoot) — CORS liberado
     if (!result) {
       try {
-        const photon = `https://photon.komoot.io/api/?q=${encodeURIComponent(`${q}, Espírito Santo, Brasil`)}&limit=1&lang=pt`;
+        const photon = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=3&lang=pt`;
         const res = await fetch(photon);
         if (res.ok) {
           const data = await res.json();
-          const feat = data?.features?.[0];
-          const coords = feat?.geometry?.coordinates;
+          const feats = Array.isArray(data?.features) ? data.features : [];
+          const preferred = feats.find((f) => {
+            const state = String(f?.properties?.state || '').toLowerCase();
+            const country = String(f?.properties?.country || '').toLowerCase();
+            return state.includes('espírito') || state.includes('espirito') || country.includes('brazil') || country.includes('brasil');
+          }) || feats[0];
+          const coords = preferred?.geometry?.coordinates;
           if (Array.isArray(coords) && coords.length >= 2) {
             result = {
               lat: Number(coords[1]),
               lng: Number(coords[0]),
-              label: feat?.properties?.name || q,
+              label: preferred?.properties?.name || q,
             };
           }
         }
@@ -150,10 +235,29 @@ window.PipocandoDelivery = (() => {
     return result;
   }
 
-  async function checkDistance(address) {
+  async function checkDistance(addressOrParts) {
     const origin = getOrigin();
     const radiusKm = getRadiusKm();
-    const geo = await geocodeAddress(address);
+    const parts = addressOrParts && typeof addressOrParts === 'object' ? addressOrParts : null;
+    const hasNumber = parts ? String(parts.number || '').trim().length > 0 : true;
+    const hasStreet = parts ? String(parts.street || '').trim().length >= 3 : true;
+    const cep = parts ? String(parts.cep || '').replace(/\D/g, '') : '';
+
+    // Sem rua/número ainda: não assusta a cliente
+    if (parts && (!hasStreet || !hasNumber) && cep.length !== 8) {
+      lastDistance = {
+        ok: false,
+        checked: false,
+        inRange: null,
+        km: null,
+        radiusKm,
+        pending: true,
+        message: 'Informe CEP, rua e número para calcular a distância.',
+      };
+      return lastDistance;
+    }
+
+    const geo = await geocodeAddress(addressOrParts);
     if (!geo) {
       lastDistance = {
         ok: false,
@@ -161,13 +265,16 @@ window.PipocandoDelivery = (() => {
         inRange: null,
         km: null,
         radiusKm,
-        message: 'Não localizamos o endereço. Confira rua, número e bairro.',
+        message: hasNumber
+          ? 'Não localizamos no mapa. Confira CEP, rua e número — ou tente outro CEP próximo.'
+          : 'Informe o número para calcular a distância.',
       };
       return lastDistance;
     }
     const km = haversineKm(origin.lat, origin.lng, geo.lat, geo.lng);
     const rounded = Math.round(km * 10) / 10;
     const inRange = km <= radiusKm + 0.05;
+    const approx = geo.source === 'cep' ? ' (pelo CEP)' : '';
     lastDistance = {
       ok: true,
       checked: true,
@@ -177,8 +284,8 @@ window.PipocandoDelivery = (() => {
       lat: geo.lat,
       lng: geo.lng,
       message: inRange
-        ? `≈ ${String(rounded).replace('.', ',')} km da loja — dentro do raio de ${radiusKm} km`
-        : `Fora da área de entrega (≈ ${String(rounded).replace('.', ',')} km). Atendemos até ${radiusKm} km.`,
+        ? `≈ ${String(rounded).replace('.', ',')} km da loja${approx} — dentro do raio de ${radiusKm} km`
+        : `Fora da área de entrega (≈ ${String(rounded).replace('.', ',')} km${approx}). Atendemos até ${radiusKm} km.`,
     };
     return lastDistance;
   }

@@ -225,14 +225,25 @@ function isDeliveryInRangeForCheckout() {
 }
 
 async function verifyCartDeliveryDistance(addressOverride) {
-  const address = String(addressOverride ?? getCartAddressForFee()).trim();
+  const parts = {
+    street: document.getElementById('cart-street')?.value.trim() || '',
+    number: document.getElementById('cart-number')?.value.trim() || '',
+    neighborhood: document.getElementById('cart-neighborhood')?.value.trim() || '',
+    city: window.PipocandoDelivery?.resolveFromCityId?.(getCartCityId())?.label || '',
+    cep: String(document.getElementById('cart-cep')?.value || '').replace(/\D/g, ''),
+  };
+  const address = typeof addressOverride === 'string' && addressOverride.trim()
+    ? addressOverride.trim()
+    : syncComposedCartAddress();
   const radiusKm = getDeliveryRadiusKm();
-  if (address.length < 8) {
+
+  if (!parts.street && parts.cep.length !== 8 && address.length < 8) {
     PipocandoDelivery?.clearDistance?.();
     setCartDistanceUI({
       checked: false,
       inRange: null,
-      message: `Informe rua, número e bairro para validar o raio de ${radiusKm} km.`,
+      pending: true,
+      message: `Informe o CEP e o número para validar o raio de ${radiusKm} km.`,
     });
     return cartDistanceState;
   }
@@ -247,7 +258,10 @@ async function verifyCartDeliveryDistance(addressOverride) {
     message: 'Calculando distância…',
   });
   try {
-    const result = await PipocandoDelivery.checkDistance(address);
+    const payload = parts.street || parts.cep
+      ? parts
+      : address;
+    const result = await PipocandoDelivery.checkDistance(payload);
     setCartDistanceUI({
       ...result,
       address,
