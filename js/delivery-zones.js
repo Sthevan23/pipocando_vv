@@ -1,6 +1,9 @@
 /**
- * Frete por cidade + limite de raio (km) a partir da loja — Pipocando VV
- * Origem padrão: Rua Burarama, 168 — Cobilândia, Vila Velha/ES
+ * Frete por cidade + estimativa de distância — Pipocando VV
+ * Origem: Rua Burarama, 168 — Cobilândia, Vila Velha/ES
+ *
+ * Regra: cidade atendida (VV / Vitória / Cariacica) libera o pedido.
+ * O GPS só estima distância e avisa; não bloqueia bairro próximo por erro de mapa.
  */
 window.PipocandoDelivery = (() => {
   const ZONES = [
@@ -10,10 +13,10 @@ window.PipocandoDelivery = (() => {
   ];
 
   const UNKNOWN = { known: false, fee: 0, city: '', label: '' };
-
-  /** Rua Burarama, CEP 29111-270 — Cobilândia */
   const DEFAULT_ORIGIN = { lat: -20.3539, lng: -40.3558 };
   const DEFAULT_RADIUS_KM = 7;
+  /** Só bloqueia de verdade se o mapa disser muito longe E não houver cidade válida */
+  const HARD_BLOCK_KM = 35;
 
   const cache = new Map();
   let lastDistance = null;
@@ -70,14 +73,16 @@ window.PipocandoDelivery = (() => {
   }
 
   function matchZone(norm) {
-    if (/\bvitoria\b/.test(norm) || /\bes\b.*\bvitoria\b/.test(norm)) return ZONES[1];
+    if (/\bvitoria\b/.test(norm)) return ZONES[1];
     if (/\bcariacica\b/.test(norm) || /\bcariacia\b/.test(norm)) return ZONES[2];
     if (
       /\bvila\s*velha\b/.test(norm) ||
-      /\bvilha\s*velha\b/.test(norm) ||
       /\bcobilandia\b/.test(norm) ||
       /\bpraia\s*da\s*costa\b/.test(norm) ||
-      /\bita\s*pua\b/.test(norm)
+      /\bita\s*pua\b/.test(norm) ||
+      /\bgloria\b/.test(norm) ||
+      /\bjaburuna\b/.test(norm) ||
+      /\bcentro\b/.test(norm)
     ) {
       return ZONES[0];
     }
@@ -103,7 +108,7 @@ window.PipocandoDelivery = (() => {
   }
 
   function radiusNoteText() {
-    return `Entregamos em até ${getRadiusKm()} km da loja (Cobilândia, Vila Velha).`;
+    return `Entregamos em Vila Velha, Vitória e Cariacica (referência ~${getRadiusKm()} km da Cobilândia).`;
   }
 
   function isInEspiritoSanto(lat, lng) {
@@ -113,63 +118,7 @@ window.PipocandoDelivery = (() => {
   function isPlausibleNearStore(lat, lng, origin, maxKm = 80) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
     if (!isInEspiritoSanto(lat, lng)) return false;
-    const km = haversineKm(origin.lat, origin.lng, lat, lng);
-    return km <= maxKm;
-  }
-
-  async function geocodeByCep(cep) {
-    const digits = String(cep || '').replace(/\D/g, '').slice(0, 8);
-    if (digits.length !== 8) return null;
-    const key = `cep:${digits}`;
-    if (cache.has(key)) return cache.get(key);
-    const origin = getOrigin();
-
-    // BrasilAPI devolve lat/lng do CEP (melhor para o raio)
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
-      if (res.ok) {
-        const data = await res.json();
-        const lat = Number(data?.location?.coordinates?.latitude);
-        const lng = Number(data?.location?.coordinates?.longitude);
-        if (
-          Number.isFinite(lat) && Number.isFinite(lng)
-          && !(lat === 0 && lng === 0)
-          && isPlausibleNearStore(lat, lng, origin, 80)
-        ) {
-          const result = {
-            lat,
-            lng,
-            label: `${data.street || ''} ${data.neighborhood || ''} ${data.city || ''}`.trim(),
-            source: 'cep',
-          };
-          cache.set(key, result);
-          return result;
-        }
-      }
-    } catch (_) { /* fallback abaixo */ }
-
-    // Fallback: geocode do CEP via proxy Nominatim (só se plauśivel)
-    try {
-      const url = `api/geocode.php?cep=${encodeURIComponent(digits)}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        const lat = Number(data.lat);
-        const lng = Number(data.lng);
-        if (data?.ok && isPlausibleNearStore(lat, lng, origin, 80)) {
-          const result = {
-            lat,
-            lng,
-            label: data.label || digits,
-            source: 'cep',
-          };
-          cache.set(key, result);
-          return result;
-        }
-      }
-    } catch (_) { /* ignore */ }
-
-    return null;
+    return haversineKm(origin.lat, origin.lng, lat, lng) <= maxKm;
   }
 
   function buildGeocodeQuery(parts = {}) {
@@ -182,149 +131,199 @@ window.PipocandoDelivery = (() => {
     if (street) chunks.push(number ? `${street}, ${number}` : street);
     if (neighborhood) chunks.push(neighborhood);
     if (city) chunks.push(city);
-    chunks.push('Espírito Santo');
-    chunks.push('Brasil');
     if (cep.length === 8) chunks.push(cep);
+    chunks.push('Espírito Santo', 'Brasil');
     return chunks.join(', ');
   }
 
+  async function geocodeByCep(cep) {
+    const digits = String(cep || '').replace(/\D/g, '').slice(0, 8);
+    if (digits.length !== 8) return null;
+    const key = `cep:${digits}`;
+    if (cache.has(key)) return cache.get(key);
+    const origin = getOrigin();
+
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
+      if (res.ok) {
+        const data = await res.json();
+        const lat = Number(data?.location?.coordinates?.latitude);
+        const lng = Number(data?.location?.coordinates?.longitude);
+        if (isPlausibleNearStore(lat, lng, origin, 80)) {
+          const result = {
+            lat,
+            lng,
+            label: `${data.street || ''} ${data.neighborhood || ''} ${data.city || ''}`.trim(),
+            source: 'cep',
+            approximate: true,
+          };
+          cache.set(key, result);
+          return result;
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    return null;
+  }
+
   async function geocodeAddress(addressOrParts) {
-    // Aceita string antiga OU objeto { street, number, neighborhood, city, cep }
+    let parts = null;
     let q = '';
     let cep = '';
+
     if (addressOrParts && typeof addressOrParts === 'object') {
-      cep = String(addressOrParts.cep || '').replace(/\D/g, '');
-      q = buildGeocodeQuery(addressOrParts);
+      parts = addressOrParts;
+      cep = String(parts.cep || '').replace(/\D/g, '');
+      q = buildGeocodeQuery(parts);
     } else {
-      q = String(addressOrParts || '').trim();
-      // Remove complemento tipo "CASA" que atrapalha o mapa
-      q = q.replace(/\s*—\s*casa\b/ig, '').replace(/\bcasa\b/ig, '').replace(/\s{2,}/g, ' ').trim();
+      q = String(addressOrParts || '')
+        .replace(/\s*—\s*casa\b/ig, '')
+        .replace(/\bcasa\b/ig, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
 
+    const origin = getOrigin();
+    const hasStreet = parts && String(parts.street || '').trim().length >= 3;
+
+    // 1) Rua + número + bairro + cidade (+ CEP) via proxy com viewbox
+    if (q.length >= 8 && hasStreet) {
+      const key = `q:${normalize(q)}`;
+      if (cache.has(key)) return cache.get(key);
+      try {
+        const url = `api/geocode.php?q=${encodeURIComponent(q)}&lat=${origin.lat}&lng=${origin.lng}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const lat = Number(data.lat);
+          const lng = Number(data.lng);
+          if (data?.ok && isPlausibleNearStore(lat, lng, origin, 80)) {
+            const result = { lat, lng, label: data.label || q, source: 'street' };
+            cache.set(key, result);
+            return result;
+          }
+        }
+      } catch (_) { /* fallback */ }
+    }
+
+    // 2) CEP só como aproximação
     if (cep.length === 8) {
       const byCep = await geocodeByCep(cep);
       if (byCep) return byCep;
     }
 
-    if (q.length < 8) return null;
-    const key = normalize(q);
-    if (cache.has(key)) return cache.get(key);
-
-    let result = null;
-
-    // 1) Proxy PHP (Nominatim) — evita CORS
-    try {
-      const url = `api/geocode.php?q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.ok && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
-          result = { lat: Number(data.lat), lng: Number(data.lng), label: data.label || q };
-        }
-      }
-    } catch (_) { /* fallback */ }
-
-    // 2) Photon (Komoot) — CORS liberado
-    if (!result) {
+    // 3) Photon — só se estado for ES
+    if (q.length >= 8) {
       try {
-        const photon = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=3&lang=pt`;
+        const photon = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=pt`;
         const res = await fetch(photon);
         if (res.ok) {
           const data = await res.json();
           const feats = Array.isArray(data?.features) ? data.features : [];
-          const preferred = feats.find((f) => {
-            const state = String(f?.properties?.state || '').toLowerCase();
-            const country = String(f?.properties?.country || '').toLowerCase();
-            return state.includes('espírito') || state.includes('espirito') || country.includes('brazil') || country.includes('brasil');
-          }) || feats[0];
-          const coords = preferred?.geometry?.coordinates;
-          if (Array.isArray(coords) && coords.length >= 2) {
-            result = {
-              lat: Number(coords[1]),
-              lng: Number(coords[0]),
-              label: preferred?.properties?.name || q,
-            };
-          }
+          let best = null;
+          let bestKm = Infinity;
+          feats.forEach((f) => {
+            const state = normalize(f?.properties?.state || '');
+            if (!(state.includes('espirito') || state.includes('espírito'))) return;
+            const coords = f?.geometry?.coordinates;
+            if (!Array.isArray(coords) || coords.length < 2) return;
+            const lat = Number(coords[1]);
+            const lng = Number(coords[0]);
+            if (!isPlausibleNearStore(lat, lng, origin, 80)) return;
+            const km = haversineKm(origin.lat, origin.lng, lat, lng);
+            if (km < bestKm) {
+              bestKm = km;
+              best = { lat, lng, label: f?.properties?.name || q, source: 'photon' };
+            }
+          });
+          if (best) return best;
         }
       } catch (_) { /* ignore */ }
     }
 
-    if (result) cache.set(key, result);
-    return result;
+    return null;
   }
 
-  async function checkDistance(addressOrParts) {
+  /**
+   * @param {object|string} addressOrParts
+   * @param {{ cityKnown?: boolean }} opts
+   */
+  async function checkDistance(addressOrParts, opts = {}) {
     const origin = getOrigin();
     const radiusKm = getRadiusKm();
+    const cityKnown = opts.cityKnown === true;
     const parts = addressOrParts && typeof addressOrParts === 'object' ? addressOrParts : null;
     const hasNumber = parts ? String(parts.number || '').trim().length > 0 : true;
     const hasStreet = parts ? String(parts.street || '').trim().length >= 3 : true;
     const cep = parts ? String(parts.cep || '').replace(/\D/g, '') : '';
 
-    // Sem rua/número ainda: não assusta a cliente
     if (parts && (!hasStreet || !hasNumber) && cep.length !== 8) {
       lastDistance = {
         ok: false,
         checked: false,
         inRange: null,
+        allowCheckout: cityKnown,
+        softWarn: false,
         km: null,
         radiusKm,
         pending: true,
-        message: 'Informe CEP, rua e número para calcular a distância.',
+        message: 'Informe CEP, rua e número para estimar a distância.',
       };
       return lastDistance;
     }
 
-    // Preferir endereço com rua/número; CEP só como reforço
-    let geo = null;
-    if (parts && (hasStreet || hasNumber)) {
-      geo = await geocodeAddress({
-        street: parts.street,
-        number: parts.number,
-        neighborhood: parts.neighborhood,
-        city: parts.city || parts.cityLabel,
-        cep: '', // força busca por rua primeiro
-      });
-      if (geo && !isPlausibleNearStore(geo.lat, geo.lng, origin, 80)) {
-        geo = null;
-      }
-    }
+    const geo = await geocodeAddress(addressOrParts);
     if (!geo) {
-      geo = await geocodeAddress(addressOrParts);
-      if (geo && !isPlausibleNearStore(geo.lat, geo.lng, origin, 80)) {
-        geo = null;
-      }
-    }
-
-    if (!geo) {
+      // Sem GPS: se a cidade é atendida, libera o pedido
       lastDistance = {
         ok: false,
         checked: false,
-        inRange: null,
+        inRange: cityKnown ? true : null,
+        allowCheckout: cityKnown,
+        softWarn: false,
         km: null,
         radiusKm,
-        message: hasNumber
-          ? 'Não localizamos no mapa. Confira CEP, rua e número — ou fale no WhatsApp.'
-          : 'Informe o número para calcular a distância.',
+        message: cityKnown
+          ? 'Não estimamos a distância no mapa, mas sua cidade é atendida. Pode finalizar.'
+          : 'Não localizamos no mapa. Selecione a cidade ou fale no WhatsApp.',
       };
       return lastDistance;
     }
+
     const km = haversineKm(origin.lat, origin.lng, geo.lat, geo.lng);
     const rounded = Math.round(km * 10) / 10;
-    const inRange = km <= radiusKm + 0.05;
-    const approx = geo.source === 'cep' ? ' (pelo CEP)' : '';
+    const withinSoft = km <= radiusKm + 1.5; // folga p/ erro de CEP/centroide
+    const softWarn = !withinSoft && km <= HARD_BLOCK_KM;
+    const hardFar = km > HARD_BLOCK_KM;
+    // Cidade atendida NUNCA é bloqueada pelo GPS
+    const allowCheckout = cityKnown || withinSoft || softWarn;
+    const inRange = withinSoft || (cityKnown && !hardFar);
+
+    let message;
+    if (withinSoft) {
+      message = `≈ ${String(rounded).replace('.', ',')} km da loja — ok para entrega`;
+    } else if (cityKnown) {
+      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (pode variar). Cidade atendida — pode finalizar ou combinar no WhatsApp.`;
+    } else if (hardFar) {
+      message = `Endereço parece muito longe (≈ ${String(rounded).replace('.', ',')} km). Fale no WhatsApp para combinarmos.`;
+    } else {
+      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Combine no WhatsApp se precisar.`;
+    }
+
     lastDistance = {
       ok: true,
       checked: true,
       inRange,
+      allowCheckout,
+      softWarn: softWarn || (cityKnown && !withinSoft),
+      hardFar: hardFar && !cityKnown,
       km: rounded,
       radiusKm,
       lat: geo.lat,
       lng: geo.lng,
-      outOfRange: !inRange,
-      message: inRange
-        ? `≈ ${String(rounded).replace('.', ',')} km da loja${approx} — dentro do raio de ${radiusKm} km`
-        : `Este endereço fica a ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Fale no WhatsApp para combinarmos a entrega.`,
+      approximate: !!geo.approximate || geo.source === 'cep',
+      outOfRange: !withinSoft,
+      message,
     };
     return lastDistance;
   }
@@ -341,6 +340,7 @@ window.PipocandoDelivery = (() => {
     ZONES,
     DEFAULT_ORIGIN,
     DEFAULT_RADIUS_KM,
+    HARD_BLOCK_KM,
     resolveFromCityId,
     resolveFromAddress,
     resolve,

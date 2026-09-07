@@ -215,19 +215,18 @@ function setCartDistanceUI(state) {
   el.textContent = state.message;
   el.className = 'cart-distance';
   if (state.checking) el.classList.add('cart-distance--pending');
-  else if (state.inRange === true) el.classList.add('cart-distance--ok');
-  else if (state.inRange === false) el.classList.add('cart-distance--out');
+  else if (state.inRange === true && !state.softWarn) el.classList.add('cart-distance--ok');
+  else if (state.hardFar) el.classList.add('cart-distance--out');
+  else if (state.softWarn || state.outOfRange) el.classList.add('cart-distance--warn');
   else el.classList.add('cart-distance--warn');
 
   if (waBtn) {
-    if (state.inRange === false) {
-      waBtn.hidden = false;
-      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp';
-    } else if (state.checked === false && !state.pending && !state.checking && /não localizamos|nao localizamos/i.test(state.message || '')) {
-      waBtn.hidden = false;
-      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Tirar dúvida no WhatsApp';
-    } else {
-      waBtn.hidden = true;
+    const showWa = !!(state.softWarn || state.hardFar || state.outOfRange || state.hardFar);
+    waBtn.hidden = !showWa;
+    if (showWa) {
+      waBtn.innerHTML = state.hardFar
+        ? '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp'
+        : '<i class="fab fa-whatsapp" aria-hidden="true"></i> Dúvida sobre entrega? WhatsApp';
     }
   }
 }
@@ -262,11 +261,13 @@ function isDeliveryInRangeForCheckout() {
 }
 
 async function verifyCartDeliveryDistance(addressOverride) {
+  const cityId = getCartCityId();
+  const cityKnown = !!(window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.known);
   const parts = {
     street: document.getElementById('cart-street')?.value.trim() || '',
     number: document.getElementById('cart-number')?.value.trim() || '',
     neighborhood: document.getElementById('cart-neighborhood')?.value.trim() || '',
-    city: window.PipocandoDelivery?.resolveFromCityId?.(getCartCityId())?.label || '',
+    city: window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.label || '',
     cep: String(document.getElementById('cart-cep')?.value || '').replace(/\D/g, ''),
   };
   const address = typeof addressOverride === 'string' && addressOverride.trim()
@@ -279,8 +280,11 @@ async function verifyCartDeliveryDistance(addressOverride) {
     setCartDistanceUI({
       checked: false,
       inRange: null,
+      allowCheckout: cityKnown,
       pending: true,
-      message: `Informe o CEP e o número para validar o raio de ${radiusKm} km.`,
+      message: cityKnown
+        ? `Cidade atendida. Informe o CEP/número para estimar os ~${radiusKm} km.`
+        : `Informe o CEP e o número para estimar a distância.`,
     });
     return cartDistanceState;
   }
@@ -295,10 +299,8 @@ async function verifyCartDeliveryDistance(addressOverride) {
     message: 'Calculando distância…',
   });
   try {
-    const payload = parts.street || parts.cep
-      ? parts
-      : address;
-    const result = await PipocandoDelivery.checkDistance(payload);
+    const payload = parts.street || parts.cep ? parts : address;
+    const result = await PipocandoDelivery.checkDistance(payload, { cityKnown });
     setCartDistanceUI({
       ...result,
       address,
@@ -308,8 +310,11 @@ async function verifyCartDeliveryDistance(addressOverride) {
   } catch (_) {
     setCartDistanceUI({
       checked: false,
-      inRange: null,
-      message: 'Não foi possível calcular a distância. Tente de novo em alguns segundos.',
+      inRange: cityKnown ? true : null,
+      allowCheckout: cityKnown,
+      message: cityKnown
+        ? 'Não estimamos a distância, mas sua cidade é atendida. Pode finalizar.'
+        : 'Não foi possível calcular a distância. Tente de novo ou fale no WhatsApp.',
     });
     return cartDistanceState;
   }
@@ -336,20 +341,22 @@ function syncFulfillmentUI() {
 
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
-    if (hasItems && cartDistanceState?.inRange === false) {
-      zoneStatus.textContent = `Fora do raio de ${radiusKm} km — combine a entrega no WhatsApp.`;
+    if (hasItems && cartDistanceState?.hardFar) {
+      zoneStatus.textContent = `Endereço parece longe — combine a entrega no WhatsApp.`;
       zoneStatus.hidden = false;
-    } else if (hasItems && delivery.known && cartDistanceState?.inRange === true) {
-      const dist = cartDistanceState.km != null
-        ? ` · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`
-        : '';
-      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}${dist}`;
+    } else if (hasItems && cartDistanceState?.softWarn) {
+      zoneStatus.textContent = delivery.known
+        ? `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · distância estimada (pode variar)`
+        : `Distância estimada acima de ${radiusKm} km — cidade precisa estar selecionada.`;
+      zoneStatus.hidden = false;
+    } else if (hasItems && delivery.known && cartDistanceState?.km != null) {
+      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`;
       zoneStatus.hidden = false;
     } else if (hasItems && delivery.known) {
-      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — confirme o endereço abaixo`;
+      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — já incluído no total`;
       zoneStatus.hidden = false;
     } else if (hasItems) {
-      zoneStatus.textContent = `Toque na cidade e informe o endereço (raio máx. ${radiusKm} km).`;
+      zoneStatus.textContent = `Toque na cidade e informe o endereço.`;
       zoneStatus.hidden = false;
     } else {
       zoneStatus.hidden = true;
@@ -2815,38 +2822,27 @@ async function checkoutCart() {
     return;
   }
 
-  // Valida raio de entrega (7 km por padrão)
-  if (!cartDistanceState?.checked || cartDistanceState.address !== address) {
+  // Distância: aviso, não bloqueio (cidade atendida libera o pedido)
+  if (!cartDistanceState || cartDistanceState.address !== address) {
     if (btn) btn.disabled = true;
-    if (error) {
-      error.textContent = 'Validando distância do endereço…';
-      error.hidden = false;
-    }
-    const dist = await verifyCartDeliveryDistance(address);
+    await verifyCartDeliveryDistance(address);
     if (btn) btn.disabled = false;
-    if (!dist?.checked) {
-      if (error) {
-        error.textContent = dist?.message || 'Não foi possível validar o endereço. Confira rua e número.';
-        error.hidden = false;
-      }
-      document.getElementById('cart-number')?.focus();
-      return;
-    }
   }
-  if (cartDistanceState?.inRange === false) {
+  const distState = cartDistanceState || {};
+  const allowByCity = delivery.known;
+  const allowByGps = distState.allowCheckout === true || distState.inRange === true;
+  if (!allowByCity && distState.hardFar) {
     if (error) {
-      error.textContent = 'Endereço fora do raio — vamos te direcionar ao WhatsApp para combinar a entrega.';
+      error.textContent = 'Endereço muito longe. Vamos abrir o WhatsApp para combinar — e o pedido será registrado.';
       error.hidden = false;
     }
-    openOutOfRangeWhatsApp();
-    return;
-  }
-  if (cartDistanceState?.inRange !== true) {
+    // ainda grava + WA abaixo (não return)
+  } else if (!allowByCity && !allowByGps && distState.checked === false && !distState.pending) {
     if (error) {
-      error.textContent = `Confirme um endereço dentro de ${getDeliveryRadiusKm()} km da loja (Cobilândia).`;
+      error.textContent = 'Selecione Vila Velha, Vitória ou Cariacica para continuar.';
       error.hidden = false;
     }
-    document.getElementById('cart-number')?.focus();
+    document.getElementById('cart-zones')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
@@ -2879,10 +2875,19 @@ async function checkoutCart() {
     notes: item.notes || '',
   }));
 
+  const distNote = distState.km != null
+    ? `Distância est. ≈ ${String(distState.km).replace('.', ',')} km`
+    : '';
+  const radiusFlag = distState.outOfRange || distState.softWarn
+    ? 'ATENÇÃO: fora/limite do raio — combinar entrega'
+    : '';
+
   const notesParts = [
     'Entrega',
     delivery.label ? `Cidade: ${delivery.label} — Frete ${Storage.formatCurrency(delivery.fee)}` : '',
     address ? `Endereço: ${address}` : '',
+    distNote,
+    radiusFlag,
     `Pagamento: ${Cart?.paymentWhatsAppLine?.(payment)?.replace(/\n/g, ' — ') || Cart?.paymentLabel?.(payment) || payment}`,
     itemsSnapshot.map((i) => {
       const flavorBit = i.flavor ? ` (${i.flavor})` : '';
@@ -2930,16 +2935,31 @@ async function checkoutCart() {
     return;
   }
 
-  const message = buildCartWhatsAppMessage({
-    fullName,
-    phone,
-    items: itemsSnapshot,
-    fulfillment,
-    address,
-    payment,
-    delivery,
-    loyalty: saved?.loyalty || null,
-  });
+  const message = (distState.outOfRange || distState.softWarn || distState.hardFar)
+    ? (
+      buildCartWhatsAppMessage({
+        fullName,
+        phone,
+        items: itemsSnapshot,
+        fulfillment,
+        address,
+        payment,
+        delivery,
+        loyalty: saved?.loyalty || null,
+      }) +
+      `\n\n(Obs.: distância estimada${distState.km != null ? ` ≈ ${String(distState.km).replace('.', ',')} km` : ''} — combinar entrega)`
+    )
+    : buildCartWhatsAppMessage({
+      fullName,
+      phone,
+      items: itemsSnapshot,
+      fulfillment,
+      address,
+      payment,
+      delivery,
+      loyalty: saved?.loyalty || null,
+    });
+
   if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();
   closeCart();
