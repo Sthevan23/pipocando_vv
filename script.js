@@ -198,6 +198,13 @@ function getDeliveryRadiusKm() {
   return window.PipocandoDelivery?.DEFAULT_RADIUS_KM || 7;
 }
 
+function isDistanceOutsideRadius(state = cartDistanceState) {
+  const km = Number(state?.km);
+  const radius = Number(state?.radiusKm) || getDeliveryRadiusKm();
+  if (!Number.isFinite(km)) return false;
+  return km > radius + 0.5;
+}
+
 function setCartDistanceUI(state) {
   cartDistanceState = state;
   const box = document.getElementById('cart-distance-box');
@@ -214,19 +221,19 @@ function setCartDistanceUI(state) {
   if (box) box.hidden = false;
   el.textContent = state.message;
   el.className = 'cart-distance';
-  if (state.checking) el.classList.add('cart-distance--pending');
-  else if (state.inRange === true && !state.softWarn) el.classList.add('cart-distance--ok');
-  else if (state.hardFar) el.classList.add('cart-distance--out');
-  else if (state.softWarn || state.outOfRange) el.classList.add('cart-distance--warn');
-  else el.classList.add('cart-distance--warn');
 
+  const outside = isDistanceOutsideRadius(state);
+  if (state.checking) el.classList.add('cart-distance--pending');
+  else if (!outside && state.km != null) el.classList.add('cart-distance--ok');
+  else if (state.hardFar) el.classList.add('cart-distance--out');
+  else if (outside) el.classList.add('cart-distance--warn');
+  else el.classList.add('cart-distance--ok');
+
+  // Botão WhatsApp SÓ se a distância for mesmo maior que o raio
   if (waBtn) {
-    const showWa = !!(state.softWarn || state.hardFar || state.outOfRange || state.hardFar);
-    waBtn.hidden = !showWa;
-    if (showWa) {
-      waBtn.innerHTML = state.hardFar
-        ? '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp'
-        : '<i class="fab fa-whatsapp" aria-hidden="true"></i> Dúvida sobre entrega? WhatsApp';
+    waBtn.hidden = !outside;
+    if (outside) {
+      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp';
     }
   }
 }
@@ -234,13 +241,29 @@ function setCartDistanceUI(state) {
 function buildOutOfRangeWhatsAppMessage() {
   const c = readCustomerFromCart();
   const addr = syncComposedCartAddress() || c.address || '';
-  const km = cartDistanceState?.km;
+  const km = Number(cartDistanceState?.km);
   const radius = getDeliveryRadiusKm();
   const name = `${c.nome || ''} ${c.sobrenome || ''}`.trim();
+  const outside = Number.isFinite(km) && km > radius + 0.5;
+
+  // Nunca mentir: se está dentro do raio, não diga "fora"
+  if (!outside) {
+    return (
+      `Olá! 🍿\n` +
+      `Quero confirmar a entrega` +
+      (Number.isFinite(km) ? ` (≈ ${String(km).replace('.', ',')} km da loja)` : '') +
+      `.\n\n` +
+      (addr ? `Endereço: ${addr}\n` : '') +
+      (name ? `Nome: ${name}\n` : '') +
+      (c.phone ? `WhatsApp: ${formatPhoneBR(c.phone)}\n` : '') +
+      `\nPode me ajudar? 😊`
+    );
+  }
+
   return (
     `Olá! 🍿\n` +
     `Meu endereço fica fora do raio de ${radius} km` +
-    (km != null ? ` (≈ ${String(km).replace('.', ',')} km)` : '') +
+    ` (≈ ${String(km).replace('.', ',')} km)` +
     `.\n\n` +
     (addr ? `Endereço: ${addr}\n` : '') +
     (name ? `Nome: ${name}\n` : '') +
@@ -344,10 +367,10 @@ function syncFulfillmentUI() {
     if (hasItems && cartDistanceState?.hardFar) {
       zoneStatus.textContent = `Endereço parece longe — combine a entrega no WhatsApp.`;
       zoneStatus.hidden = false;
-    } else if (hasItems && cartDistanceState?.softWarn) {
+    } else if (hasItems && isDistanceOutsideRadius(cartDistanceState)) {
       zoneStatus.textContent = delivery.known
-        ? `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · distância estimada (pode variar)`
-        : `Distância estimada acima de ${radiusKm} km — cidade precisa estar selecionada.`;
+        ? `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km (acima do raio)`
+        : `Distância estimada acima de ${radiusKm} km — selecione a cidade ou fale no WhatsApp.`;
       zoneStatus.hidden = false;
     } else if (hasItems && delivery.known && cartDistanceState?.km != null) {
       zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`;
@@ -2878,8 +2901,9 @@ async function checkoutCart() {
   const distNote = distState.km != null
     ? `Distância est. ≈ ${String(distState.km).replace('.', ',')} km`
     : '';
-  const radiusFlag = distState.outOfRange || distState.softWarn
-    ? 'ATENÇÃO: fora/limite do raio — combinar entrega'
+  const trulyOutside = isDistanceOutsideRadius(distState);
+  const radiusFlag = trulyOutside
+    ? 'ATENÇÃO: fora do raio — combinar entrega'
     : '';
 
   const notesParts = [
@@ -2935,30 +2959,19 @@ async function checkoutCart() {
     return;
   }
 
-  const message = (distState.outOfRange || distState.softWarn || distState.hardFar)
-    ? (
-      buildCartWhatsAppMessage({
-        fullName,
-        phone,
-        items: itemsSnapshot,
-        fulfillment,
-        address,
-        payment,
-        delivery,
-        loyalty: saved?.loyalty || null,
-      }) +
-      `\n\n(Obs.: distância estimada${distState.km != null ? ` ≈ ${String(distState.km).replace('.', ',')} km` : ''} — combinar entrega)`
-    )
-    : buildCartWhatsAppMessage({
-      fullName,
-      phone,
-      items: itemsSnapshot,
-      fulfillment,
-      address,
-      payment,
-      delivery,
-      loyalty: saved?.loyalty || null,
-    });
+  let message = buildCartWhatsAppMessage({
+    fullName,
+    phone,
+    items: itemsSnapshot,
+    fulfillment,
+    address,
+    payment,
+    delivery,
+    loyalty: saved?.loyalty || null,
+  });
+  if (trulyOutside) {
+    message += `\n\n(Obs.: distância estimada ≈ ${String(distState.km).replace('.', ',')} km — acima de ${getDeliveryRadiusKm()} km, combinar entrega)`;
+  }
 
   if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();

@@ -292,18 +292,19 @@ window.PipocandoDelivery = (() => {
 
     const km = haversineKm(origin.lat, origin.lng, geo.lat, geo.lng);
     const rounded = Math.round(km * 10) / 10;
-    const withinSoft = km <= radiusKm + 1.5; // folga p/ erro de CEP/centroide
-    const softWarn = !withinSoft && km <= HARD_BLOCK_KM;
+    // Critério estrito: dentro = <= raio (+ folga mínima de mapa)
+    const withinRadius = km <= (radiusKm + 0.5);
+    const softWarn = !withinRadius && km <= HARD_BLOCK_KM;
     const hardFar = km > HARD_BLOCK_KM;
     // Cidade atendida NUNCA é bloqueada pelo GPS
-    const allowCheckout = cityKnown || withinSoft || softWarn;
-    const inRange = withinSoft || (cityKnown && !hardFar);
+    const allowCheckout = cityKnown || withinRadius || softWarn;
+    const inRange = withinRadius;
 
     let message;
-    if (withinSoft) {
-      message = `≈ ${String(rounded).replace('.', ',')} km da loja — ok para entrega`;
+    if (withinRadius) {
+      message = `≈ ${String(rounded).replace('.', ',')} km da loja — dentro do raio de ${radiusKm} km ✓`;
     } else if (cityKnown) {
-      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (pode variar). Cidade atendida — pode finalizar ou combinar no WhatsApp.`;
+      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Cidade atendida — pode finalizar; se quiser, combine no WhatsApp.`;
     } else if (hardFar) {
       message = `Endereço parece muito longe (≈ ${String(rounded).replace('.', ',')} km). Fale no WhatsApp para combinarmos.`;
     } else {
@@ -315,14 +316,15 @@ window.PipocandoDelivery = (() => {
       checked: true,
       inRange,
       allowCheckout,
-      softWarn: softWarn || (cityKnown && !withinSoft),
+      softWarn,
       hardFar: hardFar && !cityKnown,
       km: rounded,
       radiusKm,
       lat: geo.lat,
       lng: geo.lng,
       approximate: !!geo.approximate || geo.source === 'cep',
-      outOfRange: !withinSoft,
+      // SÓ true se realmente passou do raio
+      outOfRange: !withinRadius,
       message,
     };
     return lastDistance;
