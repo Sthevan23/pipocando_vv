@@ -205,17 +205,40 @@ function isDistanceOutsideRadius(state = cartDistanceState) {
   return km > radius + 0.5;
 }
 
+function getIfoodUrl() {
+  const s = Storage.getSettings?.() || {};
+  const d = (typeof BRAND_DEFAULTS !== 'undefined' && BRAND_DEFAULTS) ? BRAND_DEFAULTS : {};
+  const url = String(s.ifoodUrl || d.ifoodUrl || '').trim();
+  if (!url || !/^https?:\/\//i.test(url)) return '';
+  return url;
+}
+
+function syncCheckoutBtnForDistance() {
+  const btn = document.getElementById('cart-checkout-btn');
+  if (!btn) return;
+  const storeOpen = typeof Storage === 'undefined' || !Storage.isStoreOpen || Storage.isStoreOpen();
+  const outside = isDistanceOutsideRadius(cartDistanceState);
+  btn.hidden = outside;
+  btn.disabled = !storeOpen || outside;
+  btn.setAttribute('aria-disabled', (!storeOpen || outside) ? 'true' : 'false');
+}
+
 function setCartDistanceUI(state) {
   cartDistanceState = state;
   const box = document.getElementById('cart-distance-box');
   const el = document.getElementById('cart-distance');
+  const actions = document.getElementById('cart-distance-actions');
   const waBtn = document.getElementById('cart-distance-wa');
+  const ifoodBtn = document.getElementById('cart-distance-ifood');
   if (!el) return;
   if (!state || !state.message) {
     if (box) box.hidden = true;
     el.textContent = '';
     el.className = 'cart-distance';
+    if (actions) actions.hidden = true;
     if (waBtn) waBtn.hidden = true;
+    if (ifoodBtn) ifoodBtn.hidden = true;
+    syncCheckoutBtnForDistance();
     return;
   }
   if (box) box.hidden = false;
@@ -225,17 +248,27 @@ function setCartDistanceUI(state) {
   const outside = isDistanceOutsideRadius(state);
   if (state.checking) el.classList.add('cart-distance--pending');
   else if (!outside && state.km != null) el.classList.add('cart-distance--ok');
-  else if (state.hardFar) el.classList.add('cart-distance--out');
-  else if (outside) el.classList.add('cart-distance--warn');
+  else if (outside) el.classList.add('cart-distance--out');
   else el.classList.add('cart-distance--ok');
 
-  // Botão WhatsApp SÓ se a distância for mesmo maior que o raio
+  if (actions) actions.hidden = !outside;
   if (waBtn) {
     waBtn.hidden = !outside;
     if (outside) {
-      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Combinar entrega no WhatsApp';
+      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Confirmar no WhatsApp';
     }
   }
+  const ifoodUrl = getIfoodUrl();
+  if (ifoodBtn) {
+    if (outside && ifoodUrl) {
+      ifoodBtn.hidden = false;
+      ifoodBtn.href = ifoodUrl;
+    } else {
+      ifoodBtn.hidden = true;
+      ifoodBtn.removeAttribute('href');
+    }
+  }
+  syncCheckoutBtnForDistance();
 }
 
 function buildOutOfRangeWhatsAppMessage() {
@@ -246,7 +279,6 @@ function buildOutOfRangeWhatsAppMessage() {
   const name = `${c.nome || ''} ${c.sobrenome || ''}`.trim();
   const outside = Number.isFinite(km) && km > radius + 0.5;
 
-  // Nunca mentir: se está dentro do raio, não diga "fora"
   if (!outside) {
     return (
       `Olá! 🍿\n` +
@@ -262,13 +294,13 @@ function buildOutOfRangeWhatsAppMessage() {
 
   return (
     `Olá! 🍿\n` +
-    `Meu endereço fica fora do raio de ${radius} km` +
-    ` (≈ ${String(km).replace('.', ',')} km)` +
+    `Meu endereço está fora da rota de entrega` +
+    ` (≈ ${String(km).replace('.', ',')} km · limite ${radius} km)` +
     `.\n\n` +
     (addr ? `Endereço: ${addr}\n` : '') +
     (name ? `Nome: ${name}\n` : '') +
     (c.phone ? `WhatsApp: ${formatPhoneBR(c.phone)}\n` : '') +
-    `\nQueria conversar se dá para combinarmos a entrega 😊`
+    `\nDá para encaixar na rota ou mando pelo iFood? 😊`
   );
 }
 
@@ -364,13 +396,9 @@ function syncFulfillmentUI() {
 
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
-    if (hasItems && cartDistanceState?.hardFar) {
-      zoneStatus.textContent = `Endereço parece longe — combine a entrega no WhatsApp.`;
-      zoneStatus.hidden = false;
-    } else if (hasItems && isDistanceOutsideRadius(cartDistanceState)) {
-      zoneStatus.textContent = delivery.known
-        ? `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km (acima do raio)`
-        : `Distância estimada acima de ${radiusKm} km — selecione a cidade ou fale no WhatsApp.`;
+    if (hasItems && isDistanceOutsideRadius(cartDistanceState)) {
+      zoneStatus.textContent =
+        `Fora da rota (≈ ${String(cartDistanceState.km).replace('.', ',')} km) — confirme no WhatsApp ou peça pelo iFood.`;
       zoneStatus.hidden = false;
     } else if (hasItems && delivery.known && cartDistanceState?.km != null) {
       zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`;
@@ -391,6 +419,7 @@ function syncFulfillmentUI() {
       : `Digite o CEP para buscar rua e bairro (até ${radiusKm} km da Cobilândia).`;
   }
   if (addressWrap) addressWrap.hidden = !hasItems;
+  syncCheckoutBtnForDistance();
 }
 
 function getCartCityId() {
@@ -1220,8 +1249,10 @@ function applyStoreStatus() {
   });
   const checkoutBtn = document.getElementById('cart-checkout-btn');
   if (checkoutBtn) {
-    checkoutBtn.disabled = !open;
-    checkoutBtn.setAttribute('aria-disabled', open ? 'false' : 'true');
+    const outside = isDistanceOutsideRadius(cartDistanceState);
+    checkoutBtn.hidden = outside;
+    checkoutBtn.disabled = !open || outside;
+    checkoutBtn.setAttribute('aria-disabled', (!open || outside) ? 'true' : 'false');
   }
 }
 
@@ -2845,22 +2876,26 @@ async function checkoutCart() {
     return;
   }
 
-  // Distância: aviso, não bloqueio (cidade atendida libera o pedido)
+  // Distância: acima do raio bloqueia o checkout no site
   if (!cartDistanceState || cartDistanceState.address !== address) {
     if (btn) btn.disabled = true;
     await verifyCartDeliveryDistance(address);
     if (btn) btn.disabled = false;
   }
   const distState = cartDistanceState || {};
-  const allowByCity = delivery.known;
-  const allowByGps = distState.allowCheckout === true || distState.inRange === true;
-  if (!allowByCity && distState.hardFar) {
+
+  if (isDistanceOutsideRadius(distState)) {
     if (error) {
-      error.textContent = 'Endereço muito longe. Vamos abrir o WhatsApp para combinar — e o pedido será registrado.';
+      error.textContent =
+        'Endereço fora da rota de entrega. Confirme no WhatsApp se conseguimos encaixar ou se enviamos pelo iFood.';
       error.hidden = false;
     }
-    // ainda grava + WA abaixo (não return)
-  } else if (!allowByCity && !allowByGps && distState.checked === false && !distState.pending) {
+    setCartDistanceUI({ ...distState, address });
+    document.getElementById('cart-distance-box')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  if (!delivery.known && distState.checked === false && !distState.pending) {
     if (error) {
       error.textContent = 'Selecione Vila Velha, Vitória ou Cariacica para continuar.';
       error.hidden = false;

@@ -3557,6 +3557,8 @@ function initSettings() {
   }
   document.getElementById('set-delivery-note').value =
     s.deliveryNote || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+  const ifoodEl = document.getElementById('set-ifood-url');
+  if (ifoodEl) ifoodEl.value = s.ifoodUrl || brandDefaultsEarly.ifoodUrl || '';
   document.getElementById('set-sobre1').value = s.sobreText1 || '';
   document.getElementById('set-sobre2').value = s.sobreText2 || '';
 
@@ -3637,6 +3639,7 @@ function initSettings() {
       storeLat: Number(Storage.getSettings()?.storeLat) || -20.3539,
       storeLng: Number(Storage.getSettings()?.storeLng) || -40.3558,
       deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+      ifoodUrl: document.getElementById('set-ifood-url')?.value.trim() || '',
       sobreText1: document.getElementById('set-sobre1').value.trim(),
       sobreText2: document.getElementById('set-sobre2').value.trim(),
       brandName: document.getElementById('set-brand-name')?.value.trim() || '',

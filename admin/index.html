@@ -569,7 +569,12 @@
           <div class="form-group">
             <label for="set-delivery-note">Observação do frete</label>
             <input type="text" id="set-delivery-note" placeholder="Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5">
-            <small class="form-hint">Centro do raio: Rua Burarama, 168 — Cobilândia. O carrinho bloqueia pedidos fora desse raio.</small>
+            <small class="form-hint">Centro do raio: Rua Burarama, 168 — Cobilândia. Acima de 7 km o site bloqueia e pede WhatsApp / iFood.</small>
+          </div>
+          <div class="form-group">
+            <label for="set-ifood-url">Link do iFood (fora da rota)</label>
+            <input type="url" id="set-ifood-url" placeholder="https://www.ifood.com.br/delivery/...">
+            <small class="form-hint">Aparece no carrinho quando o endereço passa de 7 km. Deixe em branco se ainda não tiver o link.</small>
           </div>
           <div class="form-group">
             <label for="set-site-url">URL do site</label>
@@ -685,7 +690,7 @@
   <script src="../js/product-photos.js?v=2"></script>
   <script src="../js/storage.js?v=15"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="admin.js?v=13"></script>
+  <script src="admin.js?v=14"></script>
 </body>
 </html>
 

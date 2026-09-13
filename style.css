@@ -3115,6 +3115,21 @@ p {
   gap: 0.4rem;
 }
 
+.cart-distance__actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cart-distance__actions[hidden] {
+  display: none !important;
+}
+
+.cart-distance__ifood {
+  width: 100%;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .cart-distance--ok {
   background: color-mix(in srgb, #2f9e5a 12%, #fff);
   border: 1px solid color-mix(in srgb, #2f9e5a 35%, var(--color-line, #e8dce2));

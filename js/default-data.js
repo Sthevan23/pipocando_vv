@@ -78,6 +78,8 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     storeLng: -40.3558,
 
+    ifoodUrl: '',
+
   },
 
   auth: {

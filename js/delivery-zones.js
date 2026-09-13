@@ -292,39 +292,34 @@ window.PipocandoDelivery = (() => {
 
     const km = haversineKm(origin.lat, origin.lng, geo.lat, geo.lng);
     const rounded = Math.round(km * 10) / 10;
-    // Critério estrito: dentro = <= raio (+ folga mínima de mapa)
+    // Dentro = até o raio (+0,5 km de margem do mapa)
     const withinRadius = km <= (radiusKm + 0.5);
-    const softWarn = !withinRadius && km <= HARD_BLOCK_KM;
+    const outOfRange = !withinRadius;
     const hardFar = km > HARD_BLOCK_KM;
-    // Cidade atendida NUNCA é bloqueada pelo GPS
-    const allowCheckout = cityKnown || withinRadius || softWarn;
-    const inRange = withinRadius;
 
     let message;
     if (withinRadius) {
-      message = `≈ ${String(rounded).replace('.', ',')} km da loja — dentro do raio de ${radiusKm} km ✓`;
-    } else if (cityKnown) {
-      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Cidade atendida — pode finalizar; se quiser, combine no WhatsApp.`;
-    } else if (hardFar) {
-      message = `Endereço parece muito longe (≈ ${String(rounded).replace('.', ',')} km). Fale no WhatsApp para combinarmos.`;
+      message = `≈ ${String(rounded).replace('.', ',')} km da loja — dentro da rota de entrega ✓`;
     } else {
-      message = `Estimativa ≈ ${String(rounded).replace('.', ',')} km (acima de ${radiusKm} km). Combine no WhatsApp se precisar.`;
+      message =
+        `Fora da rota de entrega (≈ ${String(rounded).replace('.', ',')} km · limite ${radiusKm} km). ` +
+        `Chame no WhatsApp para confirmarmos se encaixamos na rota ou se enviamos pelo iFood.`;
     }
 
     lastDistance = {
       ok: true,
       checked: true,
-      inRange,
-      allowCheckout,
-      softWarn,
-      hardFar: hardFar && !cityKnown,
+      inRange: withinRadius,
+      // Acima do raio: bloqueia finalizar no site
+      allowCheckout: withinRadius,
+      softWarn: outOfRange,
+      hardFar,
       km: rounded,
       radiusKm,
       lat: geo.lat,
       lng: geo.lng,
       approximate: !!geo.approximate || geo.source === 'cep',
-      // SÓ true se realmente passou do raio
-      outOfRange: !withinRadius,
+      outOfRange,
       message,
     };
     return lastDistance;

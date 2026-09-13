@@ -18,6 +18,7 @@ window.BRAND_DEFAULTS = {
   pixKey: '27999634430',
   pixName: 'Beatriz Ferreira',
   pixBank: 'Nubank',
+  ifoodUrl: '',
   marqueeItems: [
     'Pipocas Trufadas',
     'Ninho',
