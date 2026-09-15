@@ -7,10 +7,8 @@ window.PIPOCA_BASE_CATALOG = [
 ];
 
 window.PIPOCA_FLAVOR_CATALOG = [
-  { name: 'Ninho', desc: 'Creme de leite ninho', tone: '#f5f0e6', image: '' },
   { name: 'Choconuts', desc: 'Chocolate com coco', tone: '#5c3420', image: '' },
   { name: 'Cookie', desc: 'Creme com pedaços de cookie', tone: '#c9a06a', image: '' },
-  { name: 'Nutella', desc: 'Nutella cremosa', tone: '#4a2f18', image: '' },
   { name: 'Bueno', desc: 'Chocolate Kinder Bueno', tone: '#e8c96a', image: '' },
 ];
 

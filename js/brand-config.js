@@ -21,8 +21,6 @@ window.BRAND_DEFAULTS = {
   ifoodUrl: '',
   marqueeItems: [
     'Pipocas Trufadas',
-    'Ninho',
-    'Nutella',
     'Choconuts',
     'Cookie',
     'Bueno',

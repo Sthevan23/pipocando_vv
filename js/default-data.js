@@ -102,13 +102,13 @@ const PIPOCANDO_DEFAULT_DATA = {
 
   products: [
 
-    { id: 'p-pipoca-p', name: 'Pipoca Trufada P', description: 'Pote 250 ml — escolha 1 cobertura.', price: 17, categoryId: 'cat-pipocas', image: 'products/pipoca-p.jpg', featured: true, slug: 'pipoca-trufada-p', size: '250ml', flavorSlots: 1, flavors: ['Ninho', 'Choconuts', 'Cookie', 'Nutella', 'Bueno'], bestSeller: true, active: true, available: true },
+    { id: 'p-pipoca-p', name: 'Pipoca Trufada P', description: 'Pote 250 ml — escolha 1 cobertura.', price: 17, categoryId: 'cat-pipocas', image: 'products/pipoca-p.jpg', featured: true, slug: 'pipoca-trufada-p', size: '250ml', flavorSlots: 1, flavors: ['Choconuts', 'Cookie', 'Bueno'], bestSeller: true, active: true, available: true },
 
-    { id: 'p-pipoca-m', name: 'Pipoca Trufada M', description: 'Pote 500 ml — até 2 coberturas.', price: 26, categoryId: 'cat-pipocas', image: 'products/pipoca-m.jpg', featured: true, slug: 'pipoca-trufada-m', size: '500ml', flavorSlots: 2, flavors: ['Ninho', 'Choconuts', 'Cookie', 'Nutella', 'Bueno'], bestSeller: true, active: true, available: true },
+    { id: 'p-pipoca-m', name: 'Pipoca Trufada M', description: 'Pote 500 ml — até 2 coberturas.', price: 26, categoryId: 'cat-pipocas', image: 'products/pipoca-m.jpg', featured: true, slug: 'pipoca-trufada-m', size: '500ml', flavorSlots: 2, flavors: ['Choconuts', 'Cookie', 'Bueno'], bestSeller: true, active: true, available: true },
 
-    { id: 'p-pipoca-g', name: 'Pipoca Trufada G', description: 'Pote 1 litro — até 2 coberturas.', price: 50, categoryId: 'cat-pipocas', image: 'products/pipoca-g.jpg', featured: true, slug: 'pipoca-trufada-g', size: '1000ml', flavorSlots: 2, flavors: ['Ninho', 'Choconuts', 'Cookie', 'Nutella', 'Bueno'], bestSeller: true, active: true, available: true },
+    { id: 'p-pipoca-g', name: 'Pipoca Trufada G', description: 'Pote 1 litro — até 2 coberturas.', price: 50, categoryId: 'cat-pipocas', image: 'products/pipoca-g.jpg', featured: true, slug: 'pipoca-trufada-g', size: '1000ml', flavorSlots: 2, flavors: ['Choconuts', 'Cookie', 'Bueno'], bestSeller: true, active: true, available: true },
 
-    { id: 'p-combo-dupla', name: 'Combo Dupla VV', description: '2 potes M com sabores à sua escolha.', price: 48, categoryId: 'cat-combos', image: 'products/combo-dupla.jpg', featured: true, slug: 'combo-dupla-vv', size: '2×500ml', flavorSlots: 2, flavors: ['Ninho', 'Choconuts', 'Cookie', 'Nutella', 'Bueno'], promoActive: true, promoPrice: 45, promoLabel: 'Promoção', active: true, available: true },
+    { id: 'p-combo-dupla', name: 'Combo Dupla VV', description: '2 potes M com sabores à sua escolha.', price: 48, categoryId: 'cat-combos', image: 'products/combo-dupla.jpg', featured: true, slug: 'combo-dupla-vv', size: '2×500ml', flavorSlots: 2, flavors: ['Choconuts', 'Cookie', 'Bueno'], promoActive: true, promoPrice: 45, promoLabel: 'Promoção', active: true, available: true },
 
     { id: 'p-lembrancinha-vermelha', name: 'Lembrancinha Laço Vermelho', description: 'Pacote com 20 unidades de 15 g. Inclui saquinho, adesivo e laço vermelho. Sob encomenda — prazo mínimo de 5 dias.', price: 130, categoryId: 'cat-lembrancinhas', image: 'products/lembrancinha-vermelha.jpg', featured: true, slug: 'lembrancinha-laco-vermelho', size: '20×15g', flavorSlots: 0, flavors: [], bestSeller: false, active: true, available: true },
 
