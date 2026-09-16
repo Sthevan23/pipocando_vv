@@ -364,7 +364,7 @@ function initPrinter() {
         notes: 'Na janela do Windows selecione a impressora POS58',
         status: 'novo',
       }, { storeName: printerStoreName() });
-      showToast('Na janela de impressão, escolha POS58 e clique em Imprimir.', 'success');
+      showToast('Impressora POS58 · desligue cabeçalho/rodapé na janela e imprima.', 'success');
     } catch (err) {
       showToast(err?.message || 'Não abriu a impressão. Permita pop-up no Chrome.', 'error');
     }

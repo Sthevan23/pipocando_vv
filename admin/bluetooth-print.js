@@ -359,39 +359,88 @@
   }
 
   function printViaPhone(order, opts = {}) {
+    return printViaWindows(order, opts);
+  }
+
+  /**
+   * Impressão via Windows (POS58): tipografia monoespaçada grossa,
+   * largura de cupom 58mm — evita fonte “bonita” do Chrome que sai errada na térmica.
+   */
+  function printViaWindows(order, opts = {}) {
     const text = receiptText(order, opts);
+    const safe = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .split('\n')
+      .map((line) => `<div class="ln">${line || '&nbsp;'}</div>`)
+      .join('');
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Pedido ${String(order.number || '')}</title>
 <style>
-  @page { size: 58mm auto; margin: 2mm; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: "Courier New", ui-monospace, Consolas, monospace;
-    font-size: 11px;
-    line-height: 1.25;
-    white-space: pre-wrap;
-    width: 48mm;
+  @page { size: 58mm auto; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 58mm;
+    max-width: 58mm;
+    background: #fff;
     color: #000;
   }
-  @media print {
-    body { width: 48mm; }
+  body {
+    padding: 2mm 2.5mm 8mm;
+    /* Fontes que a POS58/Windows renderiza corretamente no cupom */
+    font-family: "Lucida Console", "Consolas", "Courier New", monospace !important;
+    font-size: 11pt;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0;
+    word-spacing: 0;
+    -webkit-font-smoothing: none;
+    text-rendering: optimizeSpeed;
   }
-</style></head><body>${text.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</body></html>`;
-    const w = window.open('', 'pipocando-print', 'width=420,height=640');
+  .ln {
+    font-family: inherit !important;
+    font-size: inherit;
+    font-weight: inherit;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .hint {
+    display: none;
+  }
+  @media screen {
+    body { margin: 12px auto; border: 1px dashed #999; }
+    .hint {
+      display: block;
+      font-family: sans-serif !important;
+      font-size: 12px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 10px;
+      white-space: normal;
+    }
+  }
+  @media print {
+    html, body { width: 58mm; }
+    .hint { display: none !important; }
+  }
+</style></head><body>
+<div class="hint">Na janela de impressão: impressora <b>POS58</b> · papel 58mm · desligue cabeçalho/rodapé</div>
+${safe}
+</body></html>`;
+
+    const w = window.open('', 'pipocando-print-pos58', 'width=360,height=720');
     if (!w) throw new Error('O Chrome bloqueou a janela de impressão. Permita pop-up neste site.');
+    w.document.open();
     w.document.write(html);
     w.document.close();
     w.focus();
     setTimeout(() => {
-      w.print();
-    }, 350);
+      try { w.print(); } catch { /* ignore */ }
+    }, 400);
     if (order.id) markPrinted(order.id);
     return true;
-  }
-
-  /** Caminho recomendado para POS USB que o Windows instalou como impressora. */
-  function printViaWindows(order, opts = {}) {
-    return printViaPhone(order, opts);
   }
 
   async function findWriteCharacteristic(server) {
