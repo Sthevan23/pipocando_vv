@@ -363,19 +363,35 @@
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Pedido ${String(order.number || '')}</title>
 <style>
-  @page { size: 58mm auto; margin: 4mm; }
-  body { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; margin: 0; }
+  @page { size: 58mm auto; margin: 2mm; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Courier New", ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: pre-wrap;
+    width: 48mm;
+    color: #000;
+  }
+  @media print {
+    body { width: 48mm; }
+  }
 </style></head><body>${text.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</body></html>`;
     const w = window.open('', 'pipocando-print', 'width=420,height=640');
-    if (!w) throw new Error('O Chrome bloqueou a janela de impressao. Permita pop-up neste site.');
+    if (!w) throw new Error('O Chrome bloqueou a janela de impressão. Permita pop-up neste site.');
     w.document.write(html);
     w.document.close();
     w.focus();
     setTimeout(() => {
       w.print();
-    }, 250);
+    }, 350);
     if (order.id) markPrinted(order.id);
     return true;
+  }
+
+  /** Caminho recomendado para POS USB que o Windows instalou como impressora. */
+  function printViaWindows(order, opts = {}) {
+    return printViaPhone(order, opts);
   }
 
   async function findWriteCharacteristic(server) {
@@ -509,18 +525,19 @@
 
   async function connectUsb() {
     if (!serialSupported()) {
-      throw new Error('USB só funciona no Chrome/Edge do computador. Abra o painel no PC e conecte o cabo USB da POS 58mm.');
+      throw new Error('USB serial só funciona no Chrome/Edge do computador. Para essa POS, use “Imprimir pelo Windows”.');
     }
     if (connecting) return;
     connecting = true;
     try {
-      serialPort = await navigator.serial.requestPort();
-      const bauds = [9600, 115200, 19200];
+      // Sem filtros: mostra qualquer porta serial/COM que o Windows expôs
+      serialPort = await navigator.serial.requestPort({ filters: [] });
+      const bauds = [9600, 115200, 19200, 38400];
       let opened = false;
       let lastErr = null;
       for (const baud of bauds) {
         try {
-          await serialPort.open({ baudRate: baud });
+          await serialPort.open({ baudRate: baud, bufferSize: 256 });
           opened = true;
           break;
         } catch (err) {
@@ -540,7 +557,13 @@
       notifyStatus();
       return true;
     } catch (err) {
-      if (err?.name === 'NotFoundError') throw new Error('Nenhuma impressora USB selecionada.');
+      if (err?.name === 'NotFoundError') {
+        throw new Error(
+          'Nenhum dispositivo serial encontrado. Essa POS 58mm quase sempre aparece como impressora do Windows, não como porta serial. ' +
+          'Use o botão “Imprimir pelo Windows”, escolha POS-58 / USB Printer e imprima. ' +
+          'No Android, use Bluetooth + RawBT.',
+        );
+      }
       throw new Error(err?.message || 'Não conectou a impressora USB.');
     } finally {
       connecting = false;
@@ -607,8 +630,8 @@
       printViaRawBt(order, opts);
       return true;
     }
-    if (opts.forcePhone) {
-      printViaPhone(order, opts);
+    if (opts.forcePhone || opts.forceWindows) {
+      printViaWindows(order, opts);
       return true;
     }
     if (!isConnected()) await tryReconnect();
@@ -618,7 +641,12 @@
       if (order.id) markPrinted(order.id);
       return true;
     }
-    throw new Error('Impressora ainda não conectada. Não use “Todas as impressoras”. Toque Conectar e escolha a impressora (não o moto). Se ela não entrar, use Imprimir no Android.');
+    // Sem conexão serial/BT: cai no Windows print (POS USB comum)
+    if (opts.allowWindowsFallback !== false) {
+      printViaWindows(order, opts);
+      return true;
+    }
+    throw new Error('Impressora ainda não conectada. Use “Imprimir pelo Windows” ou Bluetooth/RawBT no Android.');
   }
 
   async function printNewOrders(orders, opts = {}) {
@@ -703,6 +731,7 @@
     notifyStatus,
     friendlyConnectError,
     printViaPhone,
+    printViaWindows,
     tryReconnect,
     isAndroid,
     printViaRawBt,
