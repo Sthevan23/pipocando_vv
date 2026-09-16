@@ -2968,6 +2968,9 @@ async function checkoutCart() {
     btn.textContent = 'Registrando pedido…';
   }
 
+  // Abre aba vazia AINDA no clique (antes do await) — evita bloqueio de pop-up no desktop
+  const waTab = openWhatsAppPlaceholderTab();
+
   const saved = await Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
@@ -2987,6 +2990,7 @@ async function checkoutCart() {
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
   if (!saved?.ok) {
+    closeWhatsAppPlaceholderTab(waTab);
     if (btn) {
       btn.disabled = false;
       btn.textContent = prevLabel || 'Finalizar pedido';
@@ -3020,7 +3024,12 @@ async function checkoutCart() {
     btn.disabled = false;
     btn.textContent = prevLabel || 'Finalizar pedido';
   }
-  openWhatsAppChat(message);
+
+  const waUrl = openWhatsAppChat(message, { preOpened: waTab });
+  showOrderSentPanel({
+    orderNumber: saved?.order?.number || '',
+    whatsappUrl: waUrl,
+  });
 }
 
 function getOrderPhoneInput() {
@@ -3031,17 +3040,22 @@ function getOrderPhoneInput() {
   );
 }
 
-function getStoreWhatsAppBase() {
-  const s = Storage.getSettings();
+function getStoreWhatsAppDigits() {
+  const s = Storage.getSettings?.() || {};
   const raw = String(s.whatsapp || '5527999634430').trim();
   if (/^https?:\/\//i.test(raw)) {
-    const match = raw.match(/wa\.me\/(\d+)/i);
-    return match ? `https://wa.me/${match[1]}` : raw.split('?')[0];
+    const match = raw.match(/(?:wa\.me|whatsapp\.com\/send\?phone=)\/?(\d+)/i)
+      || raw.match(/phone=(\d+)/i);
+    if (match) return match[1];
   }
   let digits = raw.replace(/\D/g, '');
   if (!digits) digits = '5527999634430';
   if (!digits.startsWith('55')) digits = `55${digits}`;
-  return `https://wa.me/${digits}`;
+  return digits;
+}
+
+function getStoreWhatsAppBase() {
+  return `https://wa.me/${getStoreWhatsAppDigits()}`;
 }
 
 function getStorePhoneDisplay() {
@@ -3050,15 +3064,117 @@ function getStorePhoneDisplay() {
   return formatted || '(27) 99963-4430';
 }
 
-function openWhatsAppChat(text) {
-  const url = `${getStoreWhatsAppBase()}?text=${encodeURIComponent(text)}`;
-  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  if (mobile) {
-    window.location.href = url;
-    return;
+function isMobileBrowser() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
+
+function truncateWhatsAppText(text, maxLen = 1400) {
+  const msg = String(text || '').trim();
+  if (msg.length <= maxLen) return msg;
+  return `${msg.slice(0, maxLen - 40).trim()}\n\n(mensagem resumida — pedido já no painel)`;
+}
+
+function buildWhatsAppUrl(text) {
+  const phone = getStoreWhatsAppDigits();
+  const msg = truncateWhatsAppText(text);
+  // api.whatsapp.com costuma abrir melhor que wa.me após await/async
+  return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+}
+
+function openWhatsAppPlaceholderTab() {
+  if (isMobileBrowser()) return null;
+  try {
+    const tab = window.open('about:blank', 'pipocando_wa_checkout');
+    if (tab) {
+      try {
+        tab.document.write('<!DOCTYPE html><title>Abrindo WhatsApp…</title><body style="font-family:sans-serif;padding:2rem;text-align:center;color:#333"><p>Abrindo WhatsApp…</p></body>');
+        tab.document.close();
+      } catch { /* ignore */ }
+    }
+    return tab;
+  } catch {
+    return null;
   }
-  const win = window.open(url, '_blank');
-  if (!win) window.location.href = url;
+}
+
+function closeWhatsAppPlaceholderTab(tab) {
+  if (!tab || tab.closed) return;
+  try { tab.close(); } catch { /* ignore */ }
+}
+
+function openWhatsAppChat(text, opts = {}) {
+  const url = buildWhatsAppUrl(text);
+  const pre = opts.preOpened;
+
+  if (pre && !pre.closed) {
+    try {
+      pre.location.href = url;
+      try { pre.focus(); } catch { /* ignore */ }
+      return url;
+    } catch {
+      closeWhatsAppPlaceholderTab(pre);
+    }
+  }
+
+  if (isMobileBrowser()) {
+    // Mesma aba no celular — mais confiável
+    window.location.href = url;
+    return url;
+  }
+
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    // Pop-up bloqueado: o painel de sucesso com botão resolve
+    return url;
+  }
+  try { win.focus(); } catch { /* ignore */ }
+  return url;
+}
+
+function showOrderSentPanel({ orderNumber = '', whatsappUrl = '' } = {}) {
+  let el = document.getElementById('order-sent-panel');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'order-sent-panel';
+    el.className = 'order-sent-panel';
+    el.hidden = true;
+    document.body.appendChild(el);
+  }
+
+  const num = orderNumber ? `Pedido <strong>${escapeHtml(String(orderNumber))}</strong> registrado.` : 'Pedido registrado no painel.';
+  el.innerHTML = `
+    <div class="order-sent-panel__card" role="dialog" aria-modal="true" aria-labelledby="order-sent-title">
+      <button type="button" class="order-sent-panel__close" id="order-sent-close" aria-label="Fechar">×</button>
+      <p class="order-sent-panel__eyebrow">Tudo certo</p>
+      <h3 id="order-sent-title">Pedido enviado!</h3>
+      <p class="order-sent-panel__text">${num} Toque abaixo para confirmar no WhatsApp da loja.</p>
+      <a class="btn btn--primary order-sent-panel__wa" id="order-sent-wa" href="${whatsappUrl || buildWhatsAppUrl('Olá! Fiz um pedido no site.')}" target="_blank" rel="noopener">
+        <i class="fab fa-whatsapp" aria-hidden="true"></i> Abrir WhatsApp
+      </a>
+      <button type="button" class="btn btn--ghost order-sent-panel__later" id="order-sent-later">Fechar</button>
+    </div>
+  `;
+  el.hidden = false;
+  document.body.classList.add('order-sent-open');
+
+  const close = () => {
+    el.hidden = true;
+    document.body.classList.remove('order-sent-open');
+  };
+  el.querySelector('#order-sent-close')?.addEventListener('click', close);
+  el.querySelector('#order-sent-later')?.addEventListener('click', close);
+  el.addEventListener('click', (e) => {
+    if (e.target === el) close();
+  });
+  // No mobile, se já navegou pro WA, o painel pode nem aparecer — ok
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 const ORDER_TRACK_KEY = 'pipocando_active_order_v1';
@@ -3271,6 +3387,8 @@ async function finalizeOrder() {
     btn.textContent = 'Registrando pedido…';
   }
 
+  const waTab = openWhatsAppPlaceholderTab();
+
   const saved = await Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
@@ -3287,6 +3405,7 @@ async function finalizeOrder() {
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
   if (!saved?.ok) {
+    closeWhatsAppPlaceholderTab(waTab);
     if (btn) {
       btn.disabled = false;
       btn.textContent = prevLabel || 'Finalizar este pedido';
@@ -3318,7 +3437,11 @@ async function finalizeOrder() {
     btn.disabled = false;
     btn.textContent = prevLabel || 'Finalizar este pedido';
   }
-  openWhatsAppChat(messageWithFulfillment);
+  const waUrl = openWhatsAppChat(messageWithFulfillment, { preOpened: waTab });
+  showOrderSentPanel({
+    orderNumber: saved?.order?.number || '',
+    whatsappUrl: waUrl,
+  });
 }
 
 function initHeader() {
