@@ -292,7 +292,7 @@ async function printOrderTicket(orderId) {
     }
     // Sem serial/BT: caminho que funciona com POS USB no Windows
     AuroraPrint.printViaWindows(order, { storeName: printerStoreName() });
-    showToast('Escolha a impressora POS-58 / USB na janela e imprima.', 'success');
+    showToast('Escolha a impressora POS58 na janela e imprima.', 'success');
   } catch (err) {
     try {
       AuroraPrint.printViaWindows(order, { storeName: printerStoreName() });
