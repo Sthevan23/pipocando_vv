@@ -361,7 +361,7 @@ function initPrinter() {
         clientWhatsapp: '',
         items: [{ name: 'Impressao OK — escolha POS58', qty: 1, price: 0 }],
         total: 0,
-        notes: 'Na janela do Windows selecione a impressora POS58',
+        notes: 'Teste POS58',
         status: 'novo',
       }, { storeName: printerStoreName() });
       showToast('Impressora POS58 · desligue cabeçalho/rodapé na janela e imprima.', 'success');

@@ -242,7 +242,7 @@
   }
 
   function receiptText(order, opts = {}) {
-    const width = 32;
+    const width = Math.max(24, Math.min(40, Number(opts.width) || 32));
     const dash = '-'.repeat(width);
     const lines = [];
     const notes = parseTicketNotes(order.notes);
@@ -363,17 +363,21 @@
   }
 
   /**
-   * Impressão via Windows (POS58): tipografia monoespaçada grossa,
-   * largura de cupom 58mm — evita fonte “bonita” do Chrome que sai errada na térmica.
+   * Impressão via Windows (POS58): mais escura + margem esquerda maior
+   * (a térmica costuma “comer” a 1ª coluna e sair clara).
    */
   function printViaWindows(order, opts = {}) {
-    const text = receiptText(order, opts);
+    const text = receiptText(order, { ...opts, width: 28 });
     const safe = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .split('\n')
-      .map((line) => `<div class="ln">${line || '&nbsp;'}</div>`)
+      .map((line) => {
+        const content = line || '&nbsp;';
+        const plain = line || '';
+        return `<div class="ln"><span class="ink">${content}</span><span class="ink ink--strike" aria-hidden="true">${plain || '&nbsp;'}</span></div>`;
+      })
       .join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -388,27 +392,47 @@
     color: #000;
   }
   body {
-    padding: 2mm 2.5mm 8mm;
-    /* Fontes que a POS58/Windows renderiza corretamente no cupom */
+    /* Margem esquerda maior — evita cortar "C" de Cliente / "T" de TOTAL */
+    padding: 2mm 2mm 10mm 5.5mm;
     font-family: "Lucida Console", "Consolas", "Courier New", monospace !important;
-    font-size: 11pt;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0;
-    word-spacing: 0;
+    font-size: 12.5pt;
+    font-weight: 900;
+    line-height: 1.28;
+    letter-spacing: 0.02em;
     -webkit-font-smoothing: none;
-    text-rendering: optimizeSpeed;
+    text-rendering: geometricPrecision;
   }
   .ln {
+    position: relative;
     font-family: inherit !important;
     font-size: inherit;
     font-weight: inherit;
     white-space: pre;
-    overflow: hidden;
+    overflow: visible;
+    min-height: 1.28em;
+    color: #000;
   }
-  .hint {
-    display: none;
+  .ink {
+    color: #000 !important;
+    font-weight: 900 !important;
+    /* Engrossa o traço — térmica via Windows sai bem mais escura */
+    -webkit-text-stroke: 0.55px #000;
+    text-shadow:
+      0.4px 0 0 #000,
+     -0.4px 0 0 #000,
+      0 0.4px 0 #000,
+      0 -0.4px 0 #000,
+      0.55px 0.2px 0 #000,
+     -0.2px 0.55px 0 #000;
   }
+  .ink--strike {
+    position: absolute;
+    left: 0.35px;
+    top: 0.25px;
+    opacity: 0.95;
+    pointer-events: none;
+  }
+  .hint { display: none; }
   @media screen {
     body { margin: 12px auto; border: 1px dashed #999; }
     .hint {
@@ -419,6 +443,8 @@
       color: #333;
       margin-bottom: 10px;
       white-space: normal;
+      -webkit-text-stroke: 0;
+      text-shadow: none;
     }
   }
   @media print {
@@ -426,7 +452,7 @@
     .hint { display: none !important; }
   }
 </style></head><body>
-<div class="hint">Na janela de impressão: impressora <b>POS58</b> · papel 58mm · desligue cabeçalho/rodapé</div>
+<div class="hint">Impressora <b>POS58</b> · desligue cabeçalho/rodapé · se ainda sair claro, nas propriedades da POS58 aumente a densidade/escuro</div>
 ${safe}
 </body></html>`;
 
@@ -438,7 +464,7 @@ ${safe}
     w.focus();
     setTimeout(() => {
       try { w.print(); } catch { /* ignore */ }
-    }, 400);
+    }, 450);
     if (order.id) markPrinted(order.id);
     return true;
   }
