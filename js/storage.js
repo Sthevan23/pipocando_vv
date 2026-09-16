@@ -1547,6 +1547,100 @@ const Storage = (() => {
     };
   }
 
+  function shiftBrazilDateKey(dayKey, deltaDays) {
+    const key = String(dayKey || brazilDateKey());
+    const [y, m, d] = key.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+    dt.setUTCDate(dt.getUTCDate() + Number(deltaDays || 0));
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function shiftBrazilMonthKey(monthKey, deltaMonths) {
+    const key = String(monthKey || brazilMonthKey());
+    const [y, m] = key.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, (m || 1) - 1, 1));
+    dt.setUTCMonth(dt.getUTCMonth() + Number(deltaMonths || 0));
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function getSalesGoalsHistory({ days = 30, months = 6 } = {}) {
+    const goals = getSalesGoalsConfig();
+    const products = getProducts();
+    const today = brazilDateKey();
+    const thisMonth = brazilMonthKey();
+    const active = (getOrders() || []).filter((o) => {
+      const st = String(o.status || '').toLowerCase();
+      return st && st !== 'cancelado';
+    });
+
+    const byDay = {};
+    const byMonth = {};
+    active.forEach((order) => {
+      const day = brazilDateKey(order.date);
+      const month = day.slice(0, 7);
+      if (!byDay[day]) byDay[day] = { pots: 0, revenue: 0, orders: 0 };
+      if (!byMonth[month]) byMonth[month] = { pots: 0, revenue: 0, orders: 0 };
+      byDay[day].orders += 1;
+      byMonth[month].orders += 1;
+      const revenue = Number(order.total) || 0;
+      byDay[day].revenue += revenue;
+      byMonth[month].revenue += revenue;
+      (order.items || []).forEach((item) => {
+        const pots = popcornUnitsForItem(item, products);
+        byDay[day].pots += pots;
+        byMonth[month].pots += pots;
+      });
+    });
+
+    const dayRows = [];
+    const dayCount = Math.max(1, Math.min(90, Number(days) || 30));
+    for (let i = 0; i < dayCount; i += 1) {
+      const key = shiftBrazilDateKey(today, -i);
+      const row = byDay[key] || { pots: 0, revenue: 0, orders: 0 };
+      dayRows.push({
+        key,
+        label: key,
+        pots: row.pots,
+        revenue: row.revenue,
+        orders: row.orders,
+        potsGoal: goals.dailyPots,
+        revenueGoal: goals.dailyRevenue,
+        done: row.pots >= goals.dailyPots && row.revenue >= goals.dailyRevenue,
+        isToday: key === today,
+      });
+    }
+
+    const monthRows = [];
+    const monthCount = Math.max(1, Math.min(24, Number(months) || 6));
+    for (let i = 0; i < monthCount; i += 1) {
+      const key = shiftBrazilMonthKey(thisMonth, -i);
+      const row = byMonth[key] || { pots: 0, revenue: 0, orders: 0 };
+      monthRows.push({
+        key,
+        label: key,
+        pots: row.pots,
+        revenue: row.revenue,
+        orders: row.orders,
+        potsGoal: goals.monthlyPots,
+        revenueGoal: goals.monthlyRevenue,
+        done: row.pots >= goals.monthlyPots && row.revenue >= goals.monthlyRevenue,
+        isCurrent: key === thisMonth,
+      });
+    }
+
+    const daysHit = dayRows.filter((r) => r.done).length;
+    return {
+      goals,
+      days: dayRows,
+      months: monthRows,
+      summary: {
+        daysHit,
+        daysTracked: dayRows.length,
+        monthsHit: monthRows.filter((r) => r.done).length,
+      },
+    };
+  }
+
   function getMonthlyRevenue() {
     const orders = getOrders().filter((o) => o.status === 'finalizado');
     const months = {};
@@ -1942,7 +2036,7 @@ const Storage = (() => {
     getCategoryName, formatCurrency, productDisplayPrice,
     normalizeStock, productTracksStock, productStockQty, getProductById,
     isProductOrderable, productStockLabel, applyLocalStockDecrement,
-    getDashboardStats, getMonthlyRevenue, getSalesGoalsProgress, getSalesGoalsConfig,
+    getDashboardStats, getMonthlyRevenue, getSalesGoalsProgress, getSalesGoalsConfig, getSalesGoalsHistory,
     brazilDateKey, brazilMonthKey,
     getFinishedOrdersByPeriod, getProductSalesBreakdown, getSalesPeriodStats,
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,

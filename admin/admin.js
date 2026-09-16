@@ -477,6 +477,120 @@ function formatBrazilDayLabel(dayKey) {
   }
 }
 
+function formatBrazilMonthLabel(monthKey) {
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return monthKey || '';
+  const [y, m] = monthKey.split('-').map(Number);
+  try {
+    const label = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric',
+    });
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch {
+    return monthKey;
+  }
+}
+
+function openGoalsHistory(tab = 'daily') {
+  if (!Storage.getSalesGoalsHistory) {
+    showToast('Histórico de metas indisponível. Atualize a página.', 'error');
+    return;
+  }
+  const history = Storage.getSalesGoalsHistory({ days: 30, months: 6 });
+  const goals = history.goals;
+
+  const dayRows = (history.days || []).map((row) => {
+    const dateLabel = formatBrazilDayLabel(row.key);
+    const status = row.done
+      ? '<span class="goal-hit">Batida</span>'
+      : '<span class="goal-miss">Não</span>';
+    return `
+      <tr class="${row.isToday ? 'is-today' : ''}">
+        <td><strong>${escapeHtml(dateLabel)}</strong>${row.isToday ? ' <small>(hoje)</small>' : ''}</td>
+        <td>${row.orders}</td>
+        <td>${row.pots} / ${row.potsGoal}</td>
+        <td>${Storage.formatCurrency(row.revenue)} / ${Storage.formatCurrency(row.revenueGoal)}</td>
+        <td>${status}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const monthRows = (history.months || []).map((row) => {
+    const label = formatBrazilMonthLabel(row.key);
+    const status = row.done
+      ? '<span class="goal-hit">Batida</span>'
+      : '<span class="goal-miss">Não</span>';
+    return `
+      <tr class="${row.isCurrent ? 'is-current' : ''}">
+        <td><strong>${escapeHtml(label)}</strong>${row.isCurrent ? ' <small>(atual)</small>' : ''}</td>
+        <td>${row.orders}</td>
+        <td>${row.pots} / ${row.potsGoal}</td>
+        <td>${Storage.formatCurrency(row.revenue)} / ${Storage.formatCurrency(row.revenueGoal)}</td>
+        <td>${status}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const dailySummary = `Últimos 30 dias: <strong>${history.summary.daysHit}</strong> dia(s) com meta batida · meta ${goals.dailyPots} pipocas / ${Storage.formatCurrency(goals.dailyRevenue)}`;
+  const monthlySummary = `Últimos 6 meses: <strong>${history.summary.monthsHit}</strong> mês(es) com meta batida · meta ${goals.monthlyPots} pipocas / ${Storage.formatCurrency(goals.monthlyRevenue)}`;
+
+  openModal('Histórico de metas', `
+    <div class="goals-history">
+      <div class="goals-history-tabs" role="tablist">
+        <button type="button" class="filter-tab ${tab === 'daily' ? 'active' : ''}" data-goals-tab="daily">Diário</button>
+        <button type="button" class="filter-tab ${tab === 'monthly' ? 'active' : ''}" data-goals-tab="monthly">Mensal</button>
+      </div>
+      <p class="goals-history-summary" id="goals-history-summary">${tab === 'monthly' ? monthlySummary : dailySummary}</p>
+      <div class="table-responsive" id="goals-history-daily" ${tab === 'monthly' ? 'hidden' : ''}>
+        <table class="table goals-history-table">
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th>Pedidos</th>
+              <th>Pipocas</th>
+              <th>Faturamento</th>
+              <th>Meta</th>
+            </tr>
+          </thead>
+          <tbody>${dayRows || '<tr><td colspan="5">Sem dados ainda.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="table-responsive" id="goals-history-monthly" ${tab === 'daily' ? 'hidden' : ''}>
+        <table class="table goals-history-table">
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th>Pedidos</th>
+              <th>Pipocas</th>
+              <th>Faturamento</th>
+              <th>Meta</th>
+            </tr>
+          </thead>
+          <tbody>${monthRows || '<tr><td colspan="5">Sem dados ainda.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--secondary" onclick="closeModal()">Fechar</button>
+      </div>
+    </div>
+  `, { size: 'xl' });
+
+  document.querySelectorAll('[data-goals-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.getAttribute('data-goals-tab') || 'daily';
+      document.querySelectorAll('[data-goals-tab]').forEach((el) => {
+        el.classList.toggle('active', el === btn);
+      });
+      const dailyBox = document.getElementById('goals-history-daily');
+      const monthlyBox = document.getElementById('goals-history-monthly');
+      const summary = document.getElementById('goals-history-summary');
+      if (dailyBox) dailyBox.hidden = next !== 'daily';
+      if (monthlyBox) monthlyBox.hidden = next !== 'monthly';
+      if (summary) summary.innerHTML = next === 'monthly' ? monthlySummary : dailySummary;
+    });
+  });
+}
+
 /** Ms até a próxima meia-noite em America/Sao_Paulo */
 function msUntilNextBrazilMidnight() {
   const now = new Date();
@@ -625,6 +739,12 @@ function ensureGoalsAutoRefresh() {
     }, 30000);
   }
   scheduleDailyGoalReset();
+
+  const historyBtn = document.getElementById('btn-goals-history');
+  if (historyBtn && historyBtn.dataset.bound !== '1') {
+    historyBtn.dataset.bound = '1';
+    historyBtn.addEventListener('click', () => openGoalsHistory('daily'));
+  }
 }
 
 function renderDashboard() {
@@ -4164,6 +4284,7 @@ window.openEditOrder = openEditOrder;
 window.openEditOrderStatus = openEditOrderStatus;
 window.viewOrder = viewOrder;
 window.printOrderTicket = printOrderTicket;
+window.openGoalsHistory = openGoalsHistory;
 window.deleteOrder = deleteOrder;
 window.closeModal = closeModal;
 window.navigateTo = navigateTo;
