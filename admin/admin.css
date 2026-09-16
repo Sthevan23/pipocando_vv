@@ -611,6 +611,13 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   margin: 0;
   font-size: 0.95rem;
 }
+.goal-card__date {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--texto-claro);
+}
 .goal-card__target {
   font-size: 0.78rem;
   color: var(--texto-claro);

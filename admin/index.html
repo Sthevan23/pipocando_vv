@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=9">
+  <link rel="stylesheet" href="admin.css?v=10">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -62,14 +62,14 @@
         <div class="goals-panel__header">
           <div>
             <h3><i class="fas fa-bullseye"></i> Metas de venda</h3>
-            <p class="goals-panel__hint">Atualiza sozinho com os pedidos do painel (exceto cancelados).</p>
+            <p class="goals-panel__hint">A diária zera sozinha todo dia à meia-noite (Brasília). A mensal acumula o mês.</p>
           </div>
           <span class="goals-panel__badge" id="goals-daily-badge" hidden>Meta do dia batida!</span>
         </div>
         <div class="goals-grid">
           <article class="goal-card" id="goal-card-daily">
             <header class="goal-card__head">
-              <h4>Diária</h4>
+              <h4>Diária <small id="goal-daily-date" class="goal-card__date"></small></h4>
               <span class="goal-card__target">30 pipocas · R$ 870,00</span>
             </header>
             <div class="goal-metric">
@@ -771,7 +771,7 @@
   <script src="../js/storage.js?v=16"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
   <script src="bluetooth-print.js?v=1"></script>
-  <script src="admin.js?v=16"></script>
+  <script src="admin.js?v=17"></script>
 </body>
 </html>
 

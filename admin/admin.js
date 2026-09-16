@@ -459,12 +459,76 @@ function initLogout() {
 
 /* --- Dashboard --- */
 let goalsRefreshTimer = null;
+let goalsMidnightTimer = null;
 let goalsToastDayKey = '';
+let lastGoalsDayKey = '';
+
+function formatBrazilDayLabel(dayKey) {
+  if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return '';
+  const [y, m, d] = dayKey.split('-').map(Number);
+  try {
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    });
+  } catch {
+    return dayKey;
+  }
+}
+
+/** Ms até a próxima meia-noite em America/Sao_Paulo */
+function msUntilNextBrazilMidnight() {
+  const now = new Date();
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(now)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value]),
+  );
+  let h = Number(parts.hour);
+  if (h === 24) h = 0;
+  const m = Number(parts.minute) || 0;
+  const s = Number(parts.second) || 0;
+  const elapsedMs = ((h * 60 + m) * 60 + s) * 1000;
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Math.max(1500, dayMs - elapsedMs + 800);
+}
+
+function scheduleDailyGoalReset() {
+  if (goalsMidnightTimer) clearTimeout(goalsMidnightTimer);
+  goalsMidnightTimer = setTimeout(async () => {
+    try {
+      Storage.clearApiBreaker?.();
+      await Storage.pullFull?.();
+    } catch { /* ignore */ }
+    lastGoalsDayKey = '';
+    renderDashboard();
+    showToast('Novo dia — meta diária zerada automaticamente.', 'success');
+    scheduleDailyGoalReset();
+  }, msUntilNextBrazilMidnight());
+}
 
 function renderSalesGoals() {
   if (!Storage.getSalesGoalsProgress) return;
   const progress = Storage.getSalesGoalsProgress();
   const { goals, daily, monthly } = progress;
+  const dayKey = progress.today || '';
+
+  // Virada do dia: zera visual e badge
+  if (lastGoalsDayKey && dayKey && lastGoalsDayKey !== dayKey) {
+    if (document.getElementById('goals-daily-badge')) {
+      document.getElementById('goals-daily-badge').hidden = true;
+    }
+    showToast('Novo dia — meta diária zerada automaticamente.', 'success');
+  }
+  if (dayKey) lastGoalsDayKey = dayKey;
 
   const setBar = (id, pct) => {
     const el = document.getElementById(id);
@@ -474,6 +538,10 @@ function renderSalesGoals() {
   const dailyCard = document.getElementById('goal-card-daily');
   const monthlyCard = document.getElementById('goal-card-monthly');
   const badge = document.getElementById('goals-daily-badge');
+  const dailyDateEl = document.getElementById('goal-daily-date');
+  if (dailyDateEl) {
+    dailyDateEl.textContent = dayKey ? `· ${formatBrazilDayLabel(dayKey)}` : '';
+  }
 
   if (document.querySelector('#goal-card-daily .goal-card__target')) {
     document.querySelector('#goal-card-daily .goal-card__target').textContent =
@@ -511,7 +579,9 @@ function renderSalesGoals() {
 
   if (dailyStatus) {
     if (daily.done) {
-      dailyStatus.textContent = 'Meta do dia batida! 🎉';
+      dailyStatus.textContent = 'Meta do dia batida! 🎉 · zera à meia-noite';
+    } else if (daily.pots === 0 && daily.revenue === 0) {
+      dailyStatus.textContent = 'Começando do zero hoje — meta zera todo dia à meia-noite.';
     } else {
       const lackPots = Math.max(0, goals.dailyPots - daily.pots);
       const lackMoney = Math.max(0, goals.dailyRevenue - daily.revenue);
@@ -530,7 +600,6 @@ function renderSalesGoals() {
 
   // Avisa uma vez por dia quando a meta diária fecha
   try {
-    const dayKey = progress.today || '';
     const flagKey = `pipocando_goal_day_toast_${dayKey}`;
     if (daily.done && dayKey && sessionStorage.getItem(flagKey) !== '1' && goalsToastDayKey !== dayKey) {
       sessionStorage.setItem(flagKey, '1');
@@ -544,16 +613,18 @@ function renderSalesGoals() {
 }
 
 function ensureGoalsAutoRefresh() {
-  if (goalsRefreshTimer) return;
-  goalsRefreshTimer = setInterval(async () => {
-    if (document.hidden) return;
-    if (!document.getElementById('page-dashboard')?.classList.contains('active')) return;
-    try {
-      Storage.clearApiBreaker?.();
-      await Storage.pullFull?.();
-      renderDashboard();
-    } catch { /* ignore */ }
-  }, 30000);
+  if (!goalsRefreshTimer) {
+    goalsRefreshTimer = setInterval(async () => {
+      if (document.hidden) return;
+      if (!document.getElementById('page-dashboard')?.classList.contains('active')) return;
+      try {
+        Storage.clearApiBreaker?.();
+        await Storage.pullFull?.();
+        renderDashboard();
+      } catch { /* ignore */ }
+    }, 30000);
+  }
+  scheduleDailyGoalReset();
 }
 
 function renderDashboard() {
