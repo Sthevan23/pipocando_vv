@@ -1432,10 +1432,10 @@ const Storage = (() => {
     const orders = getOrders();
     const finished = orders.filter((o) => o.status === 'finalizado');
     const totalSales = finished.reduce((sum, o) => sum + o.total, 0);
-    const today = new Date().toISOString().split('T')[0];
-    const todaySales = finished.filter((o) => o.date.startsWith(today)).reduce((s, o) => s + o.total, 0);
-    const month = new Date().toISOString().slice(0, 7);
-    const monthSales = finished.filter((o) => o.date.startsWith(month)).reduce((s, o) => s + o.total, 0);
+    const today = brazilDateKey();
+    const month = today.slice(0, 7);
+    const todaySales = finished.filter((o) => brazilDateKey(o.date) === today).reduce((s, o) => s + o.total, 0);
+    const monthSales = finished.filter((o) => brazilDateKey(o.date).startsWith(month)).reduce((s, o) => s + o.total, 0);
     return {
       totalOrders: orders.length,
       totalSales,
@@ -1443,6 +1443,107 @@ const Storage = (() => {
       totalProducts: getProducts().length,
       todaySales,
       monthSales,
+    };
+  }
+
+  function brazilDateKey(value = new Date()) {
+    const d = value instanceof Date ? value : new Date(value || Date.now());
+    if (Number.isNaN(d.getTime())) {
+      return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    }
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  }
+
+  function brazilMonthKey(value = new Date()) {
+    return brazilDateKey(value).slice(0, 7);
+  }
+
+  function getSalesGoalsConfig() {
+    const s = getSettings() || {};
+    const d = (typeof PIPOCANDO_DEFAULT_DATA !== 'undefined' && PIPOCANDO_DEFAULT_DATA?.settings?.salesGoals)
+      ? PIPOCANDO_DEFAULT_DATA.settings.salesGoals
+      : {};
+    const g = (s.salesGoals && typeof s.salesGoals === 'object') ? s.salesGoals : {};
+    const num = (v, fallback) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
+    return {
+      dailyPots: num(g.dailyPots, num(d.dailyPots, 30)),
+      dailyRevenue: num(g.dailyRevenue, num(d.dailyRevenue, 870)),
+      monthlyPots: num(g.monthlyPots, num(d.monthlyPots, 660)),
+      monthlyRevenue: num(g.monthlyRevenue, num(d.monthlyRevenue, 19140)),
+    };
+  }
+
+  function popcornUnitsForItem(item, products) {
+    const qty = Math.max(0, Number(item?.qty) || 0);
+    if (!qty) return 0;
+    const id = String(item?.productId || item?.id || '').trim();
+    const name = String(item?.name || '').toLowerCase();
+    const product = id
+      ? (products || []).find((p) => String(p.id) === id)
+      : (products || []).find((p) => String(p.name || '').trim().toLowerCase() === name);
+    const cat = String(product?.categoryId || '').toLowerCase();
+    if (cat === 'cat-lembrancinhas' || /lembrancinha/.test(name)) return 0;
+    if (cat === 'cat-combos' || /combo/.test(name)) return qty * 2;
+    if (cat === 'cat-pipocas' || /pipoca|trufada/.test(name)) return qty;
+    return 0;
+  }
+
+  function getSalesGoalsProgress() {
+    const goals = getSalesGoalsConfig();
+    const products = getProducts();
+    const today = brazilDateKey();
+    const month = brazilMonthKey();
+    const active = (getOrders() || []).filter((o) => {
+      const st = String(o.status || '').toLowerCase();
+      return st && st !== 'cancelado';
+    });
+
+    const sumPeriod = (predicate) => {
+      let pots = 0;
+      let revenue = 0;
+      let orders = 0;
+      active.forEach((order) => {
+        if (!predicate(order)) return;
+        orders += 1;
+        revenue += Number(order.total) || 0;
+        (order.items || []).forEach((item) => {
+          pots += popcornUnitsForItem(item, products);
+        });
+      });
+      return { pots, revenue, orders };
+    };
+
+    const daily = sumPeriod((o) => brazilDateKey(o.date) === today);
+    const monthly = sumPeriod((o) => brazilMonthKey(o.date) === month);
+
+    const pct = (cur, goal) => {
+      if (!goal) return 0;
+      return Math.min(100, Math.round((cur / goal) * 1000) / 10);
+    };
+
+    return {
+      goals,
+      today,
+      month,
+      daily: {
+        ...daily,
+        potsPct: pct(daily.pots, goals.dailyPots),
+        revenuePct: pct(daily.revenue, goals.dailyRevenue),
+        potsDone: daily.pots >= goals.dailyPots,
+        revenueDone: daily.revenue >= goals.dailyRevenue,
+        done: daily.pots >= goals.dailyPots && daily.revenue >= goals.dailyRevenue,
+      },
+      monthly: {
+        ...monthly,
+        potsPct: pct(monthly.pots, goals.monthlyPots),
+        revenuePct: pct(monthly.revenue, goals.monthlyRevenue),
+        potsDone: monthly.pots >= goals.monthlyPots,
+        revenueDone: monthly.revenue >= goals.monthlyRevenue,
+        done: monthly.pots >= goals.monthlyPots && monthly.revenue >= goals.monthlyRevenue,
+      },
     };
   }
 
@@ -1732,13 +1833,13 @@ const Storage = (() => {
     clearApiBreaker();
     let loyalty = null;
     let lastError = 'Sem conexão com a API Hostinger';
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const res = await apiFetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'create_order', order, client }),
-        }, 25000, { force: true });
+        }, 30000, { force: true });
         const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.orderNumber) order.number = result.orderNumber;
@@ -1755,15 +1856,22 @@ const Storage = (() => {
         }
         if (res.status === 503 || res.status === 403) {
           lastError = 'Servidor ocupado agora. Aguarde 1 minuto e tente de novo.';
-          await new Promise((r) => setTimeout(r, 1200));
+          await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
         const detail = result.detail ? ` (${result.detail})` : '';
-        return { ok: false, error: (result.error || 'Falha ao gravar no painel') + detail };
+        lastError = (result.error || 'Falha ao gravar no painel') + detail;
+        // Estoque / erros transitórios: tenta de novo
+        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 2) {
+          await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+          clearApiBreaker();
+          continue;
+        }
+        return { ok: false, error: lastError };
       } catch {
         lastError = 'Sem conexão com a API Hostinger';
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
         clearApiBreaker();
       }
     }
@@ -1834,7 +1942,8 @@ const Storage = (() => {
     getCategoryName, formatCurrency, productDisplayPrice,
     normalizeStock, productTracksStock, productStockQty, getProductById,
     isProductOrderable, productStockLabel, applyLocalStockDecrement,
-    getDashboardStats, getMonthlyRevenue,
+    getDashboardStats, getMonthlyRevenue, getSalesGoalsProgress, getSalesGoalsConfig,
+    brazilDateKey, brazilMonthKey,
     getFinishedOrdersByPeriod, getProductSalesBreakdown, getSalesPeriodStats,
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,
     isCloudEnabled, wasLoadedFromCache, setAdminPassword, getAdminPassword,

@@ -80,6 +80,13 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     ifoodUrl: '',
 
+    salesGoals: {
+      dailyPots: 30,
+      dailyRevenue: 870,
+      monthlyPots: 660,
+      monthlyRevenue: 19140,
+    },
+
   },
 
   auth: {

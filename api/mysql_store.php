@@ -1326,11 +1326,8 @@ function aurora_reserve_stock_for_order(PDO $pdo, array $items): void {
     if (!$row || $row['stock'] === null) continue;
 
     $stock = (int) $row['stock'];
-    if ($stock < $qty) {
-      $name = trim((string) ($row['name'] ?? $pid));
-      throw new RuntimeException("Estoque insuficiente para {$name} (restam {$stock}).");
-    }
-    $next = $stock - $qty;
+    // Nunca bloqueia pedido do site por estoque zerado — só ajusta o número
+    $next = max(0, $stock - $qty);
     $upd->execute([$next, $next > 0 ? 1 : 0, $pid]);
   }
 }

@@ -458,6 +458,104 @@ function initLogout() {
 }
 
 /* --- Dashboard --- */
+let goalsRefreshTimer = null;
+let goalsToastDayKey = '';
+
+function renderSalesGoals() {
+  if (!Storage.getSalesGoalsProgress) return;
+  const progress = Storage.getSalesGoalsProgress();
+  const { goals, daily, monthly } = progress;
+
+  const setBar = (id, pct) => {
+    const el = document.getElementById(id);
+    if (el) el.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  };
+
+  const dailyCard = document.getElementById('goal-card-daily');
+  const monthlyCard = document.getElementById('goal-card-monthly');
+  const badge = document.getElementById('goals-daily-badge');
+
+  if (document.querySelector('#goal-card-daily .goal-card__target')) {
+    document.querySelector('#goal-card-daily .goal-card__target').textContent =
+      `${goals.dailyPots} pipocas · ${Storage.formatCurrency(goals.dailyRevenue)}`;
+  }
+  if (document.querySelector('#goal-card-monthly .goal-card__target')) {
+    document.querySelector('#goal-card-monthly .goal-card__target').textContent =
+      `${goals.monthlyPots} pipocas · ${Storage.formatCurrency(goals.monthlyRevenue)}`;
+  }
+
+  const dailyPotsEl = document.getElementById('goal-daily-pots');
+  const dailyRevEl = document.getElementById('goal-daily-revenue');
+  const monthlyPotsEl = document.getElementById('goal-monthly-pots');
+  const monthlyRevEl = document.getElementById('goal-monthly-revenue');
+  const dailyStatus = document.getElementById('goal-daily-status');
+  const monthlyStatus = document.getElementById('goal-monthly-status');
+
+  if (dailyPotsEl) dailyPotsEl.textContent = `${daily.pots} / ${goals.dailyPots}`;
+  if (dailyRevEl) {
+    dailyRevEl.textContent = `${Storage.formatCurrency(daily.revenue)} / ${Storage.formatCurrency(goals.dailyRevenue)}`;
+  }
+  if (monthlyPotsEl) monthlyPotsEl.textContent = `${monthly.pots} / ${goals.monthlyPots}`;
+  if (monthlyRevEl) {
+    monthlyRevEl.textContent = `${Storage.formatCurrency(monthly.revenue)} / ${Storage.formatCurrency(goals.monthlyRevenue)}`;
+  }
+
+  setBar('goal-daily-pots-bar', daily.potsPct);
+  setBar('goal-daily-revenue-bar', daily.revenuePct);
+  setBar('goal-monthly-pots-bar', monthly.potsPct);
+  setBar('goal-monthly-revenue-bar', monthly.revenuePct);
+
+  dailyCard?.classList.toggle('is-done', !!daily.done);
+  monthlyCard?.classList.toggle('is-done', !!monthly.done);
+  if (badge) badge.hidden = !daily.done;
+
+  if (dailyStatus) {
+    if (daily.done) {
+      dailyStatus.textContent = 'Meta do dia batida! 🎉';
+    } else {
+      const lackPots = Math.max(0, goals.dailyPots - daily.pots);
+      const lackMoney = Math.max(0, goals.dailyRevenue - daily.revenue);
+      dailyStatus.textContent = `Faltam ${lackPots} pipoca(s) e ${Storage.formatCurrency(lackMoney)} hoje.`;
+    }
+  }
+  if (monthlyStatus) {
+    if (monthly.done) {
+      monthlyStatus.textContent = 'Meta do mês batida! 🎉';
+    } else {
+      const lackPots = Math.max(0, goals.monthlyPots - monthly.pots);
+      const lackMoney = Math.max(0, goals.monthlyRevenue - monthly.revenue);
+      monthlyStatus.textContent = `Faltam ${lackPots} pipoca(s) e ${Storage.formatCurrency(lackMoney)} no mês.`;
+    }
+  }
+
+  // Avisa uma vez por dia quando a meta diária fecha
+  try {
+    const dayKey = progress.today || '';
+    const flagKey = `pipocando_goal_day_toast_${dayKey}`;
+    if (daily.done && dayKey && sessionStorage.getItem(flagKey) !== '1' && goalsToastDayKey !== dayKey) {
+      sessionStorage.setItem(flagKey, '1');
+      goalsToastDayKey = dayKey;
+      showToast(
+        `Meta do dia batida! ${goals.dailyPots} pipocas e ${Storage.formatCurrency(goals.dailyRevenue)} 🎉`,
+        'success',
+      );
+    }
+  } catch { /* ignore */ }
+}
+
+function ensureGoalsAutoRefresh() {
+  if (goalsRefreshTimer) return;
+  goalsRefreshTimer = setInterval(async () => {
+    if (document.hidden) return;
+    if (!document.getElementById('page-dashboard')?.classList.contains('active')) return;
+    try {
+      Storage.clearApiBreaker?.();
+      await Storage.pullFull?.();
+      renderDashboard();
+    } catch { /* ignore */ }
+  }, 30000);
+}
+
 function renderDashboard() {
   const stats = Storage.getDashboardStats();
 
@@ -465,6 +563,9 @@ function renderDashboard() {
   document.getElementById('stat-sales').textContent = Storage.formatCurrency(stats.totalSales);
   document.getElementById('stat-clients').textContent = stats.totalClients;
   document.getElementById('stat-products').textContent = stats.totalProducts;
+
+  renderSalesGoals();
+  ensureGoalsAutoRefresh();
 
   const allOrders = sortOrdersNewestFirst(Storage.getOrders());
   const recent = allOrders.slice(0, 8);

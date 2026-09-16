@@ -1031,9 +1031,9 @@ function formatWhatsAppItemBlock(item) {
   );
 }
 
-function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty, address, payment, delivery: deliveryOverride }) {
+function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty, address, payment, delivery: deliveryOverride, orderNumber }) {
   const s = Storage.getSettings();
-  const storeName = (s.name || 'Aurora Confeitaria Artesanal').toUpperCase();
+  const storeName = (s.name || 'Pipocando VV').toUpperCase();
   const subtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
   const coupon = appliedCoupon ? resolveLiveCoupon(appliedCoupon) : null;
   const discount = coupon ? Storage.calcCouponDiscount(coupon, subtotal) : 0;
@@ -1076,9 +1076,9 @@ function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty
 
   let loyaltyBlock = '';
   if (loyalty && loyalty.eligible) {
-    const gift = loyalty.gift || '1 brinde surpresa da Aurora';
+    const gift = loyalty.gift || '1 brinde surpresa da Pipocando';
     loyaltyBlock =
-      `FIDELIDADE AURORA\n` +
+      `FIDELIDADE PIPOCANDO\n` +
       `Cliente completou ${loyalty.total || loyalty.goal} pedidos e ganhou: ${gift}\n` +
       `(Favor confirmar o brinde neste atendimento)\n` +
       `--------------------------------\n`;
@@ -1089,8 +1089,12 @@ function buildCartWhatsAppMessage({ fullName, phone, items, fulfillment, loyalty
       `--------------------------------\n`;
   }
 
+  const orderLine = orderNumber ? `Nº do pedido: ${orderNumber}\n` : '';
+
   return (
-    `PEDIDO RECEBIDO - ${storeName}\n\n` +
+    `PEDIDO RECEBIDO - ${storeName}\n` +
+    `${orderLine}` +
+    `\n` +
     `CLIENTE:\n` +
     `Nome: ${fullName}\n` +
     `Telefone: ${formatPhoneBR(phone)}\n\n` +
@@ -3003,6 +3007,7 @@ async function checkoutCart() {
     payment,
     delivery,
     loyalty: saved?.loyalty || null,
+    orderNumber: saved?.order?.number || '',
   });
   if (trulyOutside) {
     message += `\n\n(Obs.: distância estimada ≈ ${String(distState.km).replace('.', ',')} km — acima de ${getDeliveryRadiusKm()} km, combinar entrega)`;
@@ -3296,6 +3301,7 @@ async function finalizeOrder() {
     phone,
     fulfillment,
     loyalty: saved.loyalty || null,
+    orderNumber: saved?.order?.number || '',
     items: [{
       name: product.name,
       size: product.size || '',
