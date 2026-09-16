@@ -376,7 +376,7 @@
       .map((line) => {
         const content = line || '&nbsp;';
         const plain = line || '';
-        return `<div class="ln"><span class="ink">${content}</span><span class="ink ink--strike" aria-hidden="true">${plain || '&nbsp;'}</span></div>`;
+        return `<div class="ln"><span class="ink">${content}</span><span class="ink ink--strike" aria-hidden="true">${plain || '&nbsp;'}</span><span class="ink ink--strike2" aria-hidden="true">${plain || '&nbsp;'}</span></div>`;
       })
       .join('');
 
@@ -395,10 +395,10 @@
     /* Margem esquerda maior — evita cortar "C" de Cliente / "T" de TOTAL */
     padding: 2mm 2mm 10mm 5.5mm;
     font-family: "Lucida Console", "Consolas", "Courier New", monospace !important;
-    font-size: 12.5pt;
+    font-size: 13pt;
     font-weight: 900;
-    line-height: 1.28;
-    letter-spacing: 0.02em;
+    line-height: 1.3;
+    letter-spacing: 0.03em;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
   }
@@ -406,30 +406,42 @@
     position: relative;
     font-family: inherit !important;
     font-size: inherit;
-    font-weight: inherit;
+    font-weight: 900 !important;
     white-space: pre;
     overflow: visible;
-    min-height: 1.28em;
+    min-height: 1.3em;
     color: #000;
   }
   .ink {
     color: #000 !important;
     font-weight: 900 !important;
-    /* Engrossa o traço — térmica via Windows sai bem mais escura */
-    -webkit-text-stroke: 0.55px #000;
+    /* Negrito bem forte pra térmica */
+    -webkit-text-stroke: 0.9px #000;
+    paint-order: stroke fill;
     text-shadow:
-      0.4px 0 0 #000,
-     -0.4px 0 0 #000,
-      0 0.4px 0 #000,
-      0 -0.4px 0 #000,
-      0.55px 0.2px 0 #000,
-     -0.2px 0.55px 0 #000;
+      0.5px 0 0 #000,
+     -0.5px 0 0 #000,
+      0 0.5px 0 #000,
+      0 -0.5px 0 #000,
+      0.7px 0.3px 0 #000,
+     -0.3px 0.7px 0 #000,
+      0.7px -0.3px 0 #000,
+     -0.3px -0.7px 0 #000,
+      1px 0 0 #000,
+      0 1px 0 #000;
   }
   .ink--strike {
     position: absolute;
-    left: 0.35px;
-    top: 0.25px;
-    opacity: 0.95;
+    left: 0.45px;
+    top: 0.35px;
+    opacity: 1;
+    pointer-events: none;
+  }
+  .ink--strike2 {
+    position: absolute;
+    left: -0.35px;
+    top: -0.25px;
+    opacity: 0.9;
     pointer-events: none;
   }
   .hint { display: none; }
