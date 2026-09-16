@@ -296,7 +296,7 @@ async function printOrderTicket(orderId) {
   } catch (err) {
     try {
       AuroraPrint.printViaWindows(order, { storeName: printerStoreName() });
-      showToast('Escolha a impressora POS-58 / USB na janela e imprima.', 'success');
+      showToast('Escolha a impressora POS58 na janela e imprima.', 'success');
     } catch (err2) {
       showToast(err2?.message || err?.message || 'Falha ao imprimir.', 'error');
     }
@@ -346,18 +346,9 @@ function initPrinter() {
     }
   });
 
-  document.getElementById('btn-printer-usb')?.addEventListener('click', async () => {
-    try {
-      await AuroraPrint.connectUsb();
-      updatePrinterUi(AuroraPrint.notifyStatus());
-      showToast('Impressora USB (serial) conectada!', 'success');
-      await maybeAutoPrintNewOrders();
-    } catch (err) {
-      showToast(
-        err?.message || 'Essa POS não aparece como porta serial. Use “Imprimir pelo Windows”.',
-        'error',
-      );
-    }
+  document.getElementById('btn-printer-usb')?.addEventListener('click', () => {
+    // POS58 não é porta serial — sempre Windows
+    document.getElementById('btn-printer-windows')?.click();
   });
 
   document.getElementById('btn-printer-windows')?.addEventListener('click', () => {
@@ -368,14 +359,14 @@ function initPrinter() {
         date: new Date().toISOString(),
         clientName: 'Teste Pipocando',
         clientWhatsapp: '',
-        items: [{ name: 'Impressao OK via Windows', qty: 1, price: 0 }],
+        items: [{ name: 'Impressao OK — escolha POS58', qty: 1, price: 0 }],
         total: 0,
-        notes: 'Escolha a impressora POS-58 / USB na janela',
+        notes: 'Na janela do Windows selecione a impressora POS58',
         status: 'novo',
       }, { storeName: printerStoreName() });
-      showToast('Na janela de impressão, escolha a POS-58 / USB e clique em Imprimir.', 'success');
+      showToast('Na janela de impressão, escolha POS58 e clique em Imprimir.', 'success');
     } catch (err) {
-      showToast(err?.message || 'Não abriu a impressão do Windows.', 'error');
+      showToast(err?.message || 'Não abriu a impressão. Permita pop-up no Chrome.', 'error');
     }
   });
 
@@ -432,7 +423,7 @@ function initPrinter() {
         notes: 'Escolha POS-58 na janela do Windows',
         status: 'novo',
       }, { storeName: printerStoreName() });
-      showToast('Na janela, escolha a POS-58 / USB e imprima.', 'success');
+      showToast('Na janela, escolha POS58 e imprima.', 'success');
     } catch (err) {
       showToast(err?.message || 'Falha no teste de impressão.', 'error');
     }

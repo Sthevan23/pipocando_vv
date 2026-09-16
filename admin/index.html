@@ -196,21 +196,20 @@
           <span class="card__subtitle" id="printer-status-label">Aguardando conexão</span>
         </div>
         <ol class="printer-steps">
-          <li>Ligue a <strong>POS 58mm</strong> e plugue o cabo USB no computador.</li>
-          <li><strong>Melhor opção no PC:</strong> toque <strong>Imprimir pelo Windows</strong> → na janela escolha a impressora <em>POS-58 / USB / Generic</em> → Imprimir.</li>
-          <li>O botão <strong>USB (porta serial)</strong> só funciona se o Windows criar uma porta COM. Se aparecer “nenhum dispositivo”, ignore e use o Windows.</li>
-          <li><strong>No Android:</strong> Bluetooth (não “Todas as impressoras”) + app <a href="https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter" target="_blank" rel="noopener">RawBT</a>.</li>
+          <li>Ligue a POS e deixe o cabo USB plugado. No Windows ela deve aparecer como <strong>POS58</strong>.</li>
+          <li>Toque <strong>Imprimir (POS58)</strong>. Vai abrir a janela do Windows — escolha <strong>POS58</strong> e Imprimir.</li>
+          <li>Não use “porta serial”: essa impressora <strong>não aparece</strong> nessa lista do Chrome (é normal).</li>
+          <li>No celular: Bluetooth + app <a href="https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter" target="_blank" rel="noopener">RawBT</a>.</li>
         </ol>
         <div class="printer-card__actions">
-          <button type="button" class="btn btn--primary" id="btn-printer-windows"><i class="fas fa-print"></i> Imprimir pelo Windows</button>
+          <button type="button" class="btn btn--primary" id="btn-printer-windows"><i class="fas fa-print"></i> Imprimir (POS58)</button>
+          <button type="button" class="btn btn--secondary" id="btn-printer-test"><i class="fas fa-receipt"></i> Teste de impressão</button>
           <button type="button" class="btn btn--secondary" id="btn-printer-connect"><i class="fas fa-bluetooth"></i> Bluetooth</button>
           <button type="button" class="btn btn--secondary" id="btn-printer-rawbt"><i class="fas fa-mobile-screen"></i> Imprimir no Android</button>
-          <button type="button" class="btn btn--secondary" id="btn-printer-test"><i class="fas fa-receipt"></i> Teste de impressão</button>
           <button type="button" class="btn btn--secondary" id="btn-printer-disconnect" hidden><i class="fas fa-unlink"></i> Desconectar</button>
-          <button type="button" class="btn btn--secondary" id="btn-printer-usb"><i class="fas fa-usb"></i> USB (porta serial)</button>
           <label class="checkbox-label printer-card__auto">
             <input type="checkbox" id="printer-auto-print" checked>
-            Imprimir automaticamente pedidos novos (precisa Bluetooth/serial)
+            Imprimir automaticamente (só com Bluetooth/RawBT)
           </label>
         </div>
       </div>
@@ -775,8 +774,8 @@
   <script src="../js/product-photos.js?v=2"></script>
   <script src="../js/storage.js?v=17"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="bluetooth-print.js?v=2"></script>
-  <script src="admin.js?v=19"></script>
+  <script src="bluetooth-print.js?v=3"></script>
+  <script src="admin.js?v=20"></script>
 </body>
 </html>
 
