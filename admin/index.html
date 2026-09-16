@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="admin.css?v=11">
+  <link rel="stylesheet" href="admin.css?v=12">
   <script>
     if (sessionStorage.getItem('admin_logged') !== 'true') {
       location.replace('login.html');
@@ -209,8 +209,9 @@
           <button type="button" class="btn btn--secondary" id="btn-printer-disconnect" hidden><i class="fas fa-unlink"></i> Desconectar</button>
           <label class="checkbox-label printer-card__auto">
             <input type="checkbox" id="printer-auto-print" checked>
-            Imprimir automaticamente (só com Bluetooth/RawBT)
+            Imprimir automaticamente pedidos novos (POS58 / Windows)
           </label>
+          <p class="printer-auto-hint" id="printer-auto-hint">Deixe a <strong>POS58</strong> como impressora padrão do Windows. Mantenha o painel de Pedidos aberto.</p>
         </div>
       </div>
 
@@ -774,8 +775,8 @@
   <script src="../js/product-photos.js?v=2"></script>
   <script src="../js/storage.js?v=17"></script>
   <script src="../js/delivery-zones.js?v=1"></script>
-  <script src="bluetooth-print.js?v=6"></script>
-  <script src="admin.js?v=20"></script>
+  <script src="bluetooth-print.js?v=7"></script>
+  <script src="admin.js?v=21"></script>
 </body>
 </html>
 

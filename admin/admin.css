@@ -1221,6 +1221,12 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   margin: 0;
   width: 100%;
 }
+.printer-auto-hint {
+  margin: 0 1.1rem 1rem;
+  font-size: 0.82rem;
+  color: var(--texto-claro, #6b5348);
+  line-height: 1.4;
+}
 #printer-status-label.is-connected {
   color: #1565c0;
   font-weight: 600;

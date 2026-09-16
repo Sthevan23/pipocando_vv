@@ -365,6 +365,7 @@
   /**
    * Impressão via Windows (POS58): mais escura + margem esquerda maior
    * (a térmica costuma “comer” a 1ª coluna e sair clara).
+   * opts.silent = usa iframe (melhor pra impressão automática).
    */
   function printViaWindows(order, opts = {}) {
     const text = receiptText(order, { ...opts, width: 28 });
@@ -392,7 +393,6 @@
     color: #000;
   }
   body {
-    /* Margem esquerda maior — evita cortar "C" de Cliente / "T" de TOTAL */
     padding: 2mm 2mm 10mm 5.5mm;
     font-family: "Lucida Console", "Consolas", "Courier New", monospace !important;
     font-size: 13pt;
@@ -415,7 +415,6 @@
   .ink {
     color: #000 !important;
     font-weight: 900 !important;
-    /* Negrito bem forte pra térmica */
     -webkit-text-stroke: 0.9px #000;
     paint-order: stroke fill;
     text-shadow:
@@ -464,9 +463,47 @@
     .hint { display: none !important; }
   }
 </style></head><body>
-<div class="hint">Impressora <b>POS58</b> · desligue cabeçalho/rodapé · se ainda sair claro, nas propriedades da POS58 aumente a densidade/escuro</div>
+<div class="hint">Impressora <b>POS58</b> · desligue cabeçalho/rodapé</div>
 ${safe}
 </body></html>`;
+
+    const finish = () => {
+      if (order.id) markPrinted(order.id);
+      return true;
+    };
+
+    if (opts.silent) {
+      return new Promise((resolve) => {
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('title', 'print-pos58');
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;pointer-events:none';
+        document.body.appendChild(iframe);
+        const win = iframe.contentWindow;
+        const doc = win?.document;
+        if (!doc) {
+          try { iframe.remove(); } catch { /* ignore */ }
+          resolve(printViaWindows(order, { ...opts, silent: false }));
+          return;
+        }
+        doc.open();
+        doc.write(html);
+        doc.close();
+        const run = () => {
+          try {
+            win.focus();
+            win.print();
+          } catch (err) {
+            console.warn('[Pipocando] print iframe', err);
+          }
+          finish();
+          setTimeout(() => {
+            try { iframe.remove(); } catch { /* ignore */ }
+            resolve(true);
+          }, 1200);
+        };
+        setTimeout(run, 450);
+      });
+    }
 
     const w = window.open('', 'pipocando-print-pos58', 'width=360,height=720');
     if (!w) throw new Error('O Chrome bloqueou a janela de impressão. Permita pop-up neste site.');
@@ -477,8 +514,7 @@ ${safe}
     setTimeout(() => {
       try { w.print(); } catch { /* ignore */ }
     }, 450);
-    if (order.id) markPrinted(order.id);
-    return true;
+    return finish();
   }
 
   async function findWriteCharacteristic(server) {
@@ -739,9 +775,7 @@ ${safe}
   async function printNewOrders(orders, opts = {}) {
     if (!getAutoPrint()) return { printed: 0, skipped: true };
     if (!isConnected()) await tryReconnect();
-    if (!isConnected() && !(await ensureConnected())) {
-      return { printed: 0, disconnected: true };
-    }
+    const viaWindows = !isConnected();
     seedPrintedFromOrders(orders);
     const list = (orders || []).filter((o) => {
       if (!o?.id) return false;
@@ -752,15 +786,20 @@ ${safe}
     let printed = 0;
     for (const order of list) {
       try {
-        await printOrder(order, opts);
+        if (viaWindows) {
+          // POS58 no USB: imprime pelo Windows (iframe)
+          await printViaWindows(order, { ...opts, silent: true });
+        } else {
+          await printOrder(order, { ...opts, allowWindowsFallback: false });
+        }
         printed += 1;
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, viaWindows ? 2200 : 400));
       } catch (err) {
         console.warn('[Pipocando] Falha ao imprimir pedido', order?.number, err);
         break;
       }
     }
-    return { printed, disconnected: false, skipped: false };
+    return { printed, disconnected: false, skipped: false, viaWindows };
   }
 
   function disconnect() {

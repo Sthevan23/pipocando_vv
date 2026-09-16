@@ -264,8 +264,10 @@ async function maybeAutoPrintNewOrders() {
     if (result?.printed > 0) {
       showToast(
         result.printed === 1
-          ? 'Pedido novo impresso!'
-          : `${result.printed} pedidos novos impressos!`,
+          ? (result.viaWindows
+            ? 'Pedido novo — confirme a impressão na POS58 (se a janela abrir).'
+            : 'Pedido novo impresso!')
+          : `${result.printed} pedidos novos enviados para impressão!`,
         'success',
       );
     }
@@ -433,18 +435,24 @@ function initPrinter() {
     AuroraPrint.setAutoPrint(!!e.target.checked);
     updatePrinterUi(AuroraPrint.notifyStatus());
     showToast(
-      e.target.checked ? 'Impressão automática ligada.' : 'Impressão automática desligada.',
+      e.target.checked
+        ? 'Automático ligado. Deixe POS58 como padrão e o painel Pedidos aberto.'
+        : 'Impressão automática desligada.',
       'success',
     );
+    if (e.target.checked) maybeAutoPrintNewOrders();
   });
 
   AuroraPrint.tryReconnect?.().then((ok) => {
     updatePrinterUi(AuroraPrint.notifyStatus());
-    if (ok) maybeAutoPrintNewOrders();
+    maybeAutoPrintNewOrders();
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) AuroraPrint.tryReconnect?.().then(() => updatePrinterUi(AuroraPrint.notifyStatus()));
+    if (!document.hidden) {
+      AuroraPrint.tryReconnect?.().then(() => updatePrinterUi(AuroraPrint.notifyStatus()));
+      if (AuroraPrint.getAutoPrint()) maybeAutoPrintNewOrders();
+    }
   });
 
   setInterval(() => {
@@ -458,13 +466,15 @@ function initPrinter() {
     });
   }, 8000);
 
-  // Só busca na nuvem pra auto-imprimir se a impressora já estiver conectada
+  // Auto POS58: busca pedidos novos mesmo sem Bluetooth/serial
   setInterval(() => {
     if (document.hidden) return;
     if (!AuroraPrint.getAutoPrint()) return;
-    if (!AuroraPrint.isConnected()) return;
+    const onPedidos = document.getElementById('page-pedidos')?.classList.contains('active');
+    const onDash = document.getElementById('page-dashboard')?.classList.contains('active');
+    if (!onPedidos && !onDash) return;
     refreshOrdersFromCloud({ quiet: true });
-  }, 45000);
+  }, 20000);
 }
 
 function initLogout() {
@@ -2265,9 +2275,13 @@ function openNewOrderModal() {
       renderClients();
       renderDashboard();
       showToast('Pedido criado com sucesso!', 'success');
-      if (window.AuroraPrint?.isConnected?.() && AuroraPrint.getAutoPrint()) {
+      if (window.AuroraPrint && AuroraPrint.getAutoPrint()) {
         try {
-          await AuroraPrint.printOrder(newOrder, { storeName: printerStoreName() });
+          if (AuroraPrint.isConnected?.()) {
+            await AuroraPrint.printOrder(newOrder, { storeName: printerStoreName(), allowWindowsFallback: false });
+          } else {
+            await AuroraPrint.printViaWindows(newOrder, { storeName: printerStoreName(), silent: true });
+          }
         } catch (err) {
           console.warn('[Pipocando] Print novo pedido admin', err);
         }
