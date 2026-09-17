@@ -105,7 +105,7 @@
         if (res.ok) {
           const catalog = await res.json();
           if (catalog && Array.isArray(catalog.products)) {
-            localStorage.setItem('pipocando_public_catalog_v11', JSON.stringify({
+            localStorage.setItem('pipocando_public_catalog_v12', JSON.stringify({
               ...catalog,
               savedAt: Date.now(),
               clients: [],

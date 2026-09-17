@@ -21,9 +21,10 @@ window.BRAND_DEFAULTS = {
   ifoodUrl: '',
   marqueeItems: [
     'Pipocas Trufadas',
-    'Choconuts',
-    'Cookie',
+    'Ninho',
+    'Nutella',
     'Bueno',
+    'Cookie',
     'A pipoca que virou sobremesa!',
   ],
 };

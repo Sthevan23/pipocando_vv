@@ -7,9 +7,10 @@ window.PIPOCA_BASE_CATALOG = [
 ];
 
 window.PIPOCA_FLAVOR_CATALOG = [
-  { name: 'Choconuts', desc: 'Chocolate com coco', tone: '#5c3420', image: '' },
-  { name: 'Cookie', desc: 'Creme com pedaços de cookie', tone: '#c9a06a', image: '' },
+  { name: 'Ninho', desc: 'Leite em pó Ninho', tone: '#f5e6c8', image: '' },
+  { name: 'Nutella', desc: 'Creme de avelã Nutella', tone: '#5c3420', image: '' },
   { name: 'Bueno', desc: 'Chocolate Kinder Bueno', tone: '#e8c96a', image: '' },
+  { name: 'Cookie', desc: 'Creme com pedaços de cookie', tone: '#c9a06a', image: '' },
 ];
 
 window.PIPOCA_FLAVOR_NAMES = window.PIPOCA_FLAVOR_CATALOG.map((item) => item.name);
