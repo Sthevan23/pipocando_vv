@@ -363,22 +363,18 @@
   }
 
   /**
-   * Impressão via Windows (POS58): mais escura + margem esquerda maior
-   * (a térmica costuma “comer” a 1ª coluna e sair clara).
+   * Impressão via Windows (POS58): leve o bastante pra ler,
+   * estreito o bastante pra não cortar nas laterais do papel 58mm.
    * opts.silent = usa iframe (melhor pra impressão automática).
    */
   function printViaWindows(order, opts = {}) {
-    const text = receiptText(order, { ...opts, width: 28 });
+    const text = receiptText(order, { ...opts, width: 24 });
     const safe = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .split('\n')
-      .map((line) => {
-        const content = line || '&nbsp;';
-        const plain = line || '';
-        return `<div class="ln"><span class="ink">${content}</span><span class="ink ink--strike" aria-hidden="true">${plain || '&nbsp;'}</span><span class="ink ink--strike2" aria-hidden="true">${plain || '&nbsp;'}</span></div>`;
-      })
+      .map((line) => `<div class="ln">${line || '&nbsp;'}</div>`)
       .join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -393,55 +389,23 @@
     color: #000;
   }
   body {
-    padding: 2mm 2mm 10mm 5.5mm;
-    font-family: "Lucida Console", "Consolas", "Courier New", monospace !important;
-    font-size: 13pt;
-    font-weight: 900;
-    line-height: 1.3;
-    letter-spacing: 0.03em;
+    /* Margens laterais: evita corte esquerdo E direito na POS58 */
+    padding: 2mm 4mm 8mm 4.5mm;
+    font-family: "Consolas", "Lucida Console", "Courier New", monospace !important;
+    font-size: 9.5pt;
+    font-weight: 600;
+    line-height: 1.22;
+    letter-spacing: 0;
     -webkit-font-smoothing: none;
-    text-rendering: geometricPrecision;
   }
   .ln {
-    position: relative;
     font-family: inherit !important;
     font-size: inherit;
-    font-weight: 900 !important;
+    font-weight: 600;
     white-space: pre;
-    overflow: visible;
-    min-height: 1.3em;
+    overflow: hidden;
+    max-width: 100%;
     color: #000;
-  }
-  .ink {
-    color: #000 !important;
-    font-weight: 900 !important;
-    -webkit-text-stroke: 0.9px #000;
-    paint-order: stroke fill;
-    text-shadow:
-      0.5px 0 0 #000,
-     -0.5px 0 0 #000,
-      0 0.5px 0 #000,
-      0 -0.5px 0 #000,
-      0.7px 0.3px 0 #000,
-     -0.3px 0.7px 0 #000,
-      0.7px -0.3px 0 #000,
-     -0.3px -0.7px 0 #000,
-      1px 0 0 #000,
-      0 1px 0 #000;
-  }
-  .ink--strike {
-    position: absolute;
-    left: 0.45px;
-    top: 0.35px;
-    opacity: 1;
-    pointer-events: none;
-  }
-  .ink--strike2 {
-    position: absolute;
-    left: -0.35px;
-    top: -0.25px;
-    opacity: 0.9;
-    pointer-events: none;
   }
   .hint { display: none; }
   @media screen {
@@ -454,12 +418,10 @@
       color: #333;
       margin-bottom: 10px;
       white-space: normal;
-      -webkit-text-stroke: 0;
-      text-shadow: none;
     }
   }
   @media print {
-    html, body { width: 58mm; }
+    html, body { width: 58mm !important; }
     .hint { display: none !important; }
   }
 </style></head><body>
