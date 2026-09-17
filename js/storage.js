@@ -1221,7 +1221,16 @@ const Storage = (() => {
   async function saveProductsAsync(products) {
     const data = getAll();
     data.products = products;
-    return saveAsync(data);
+    const ok = await saveAsync(data);
+    if (ok) {
+      // Garante que o site (catalog.live.json) recebe o preço novo na hora
+      try { await publishCatalogAsync(); } catch { /* ignore */ }
+      try {
+        const publicProducts = (products || []).filter((p) => p.active !== false);
+        savePublicCache({ ...data, products: publicProducts });
+      } catch { /* ignore */ }
+    }
+    return ok;
   }
 
   async function publishCatalogAsync() {

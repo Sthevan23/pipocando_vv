@@ -2901,12 +2901,15 @@ function openProductModal(product = null) {
       renderDashboard();
 
       if (!ok) {
-        showToast('Produto ficou só neste celular — não subiu pro site. Verifique a internet e tente Salvar de novo.', 'error');
+        showToast('Produto ficou só neste celular — não subiu pro site. Verifique a internet / badge Nuvem e tente Salvar de novo.', 'error');
         return;
       }
 
+      // Segunda publicação explícita (preço/promo no cardápio público)
+      try { await Storage.publishCatalogAsync?.(); } catch { /* ignore */ }
+
       closeModal();
-      showToast(isEdit ? 'Produto atualizado no site!' : 'Produto publicado no site!', 'success');
+      showToast(isEdit ? 'Produto e preço atualizados no site! Atualize a página do site (Ctrl+F5).' : 'Produto publicado no site!', 'success');
     } catch (err) {
       showToast(err.message || 'Falha ao salvar produto.', 'error');
     } finally {
