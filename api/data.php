@@ -215,6 +215,7 @@ if ($method === 'POST') {
   if (
     $actionName === 'loyalty_status'
     || $actionName === 'create_order'
+    || $actionName === 'delete_order'
     || $actionName === 'order_status'
     || $actionName === 'save_catalog_order'
     || $actionName === 'save_settings'
@@ -281,6 +282,23 @@ if ($method === 'POST') {
       json_out($result);
     } catch (Throwable $e) {
       json_out(['error' => 'Falha ao gravar pedido', 'detail' => $e->getMessage()], 500);
+    }
+  }
+
+  if ($actionName === 'delete_order') {
+    $auth = aurora_get_auth($pdo);
+    if ($password === '' || $auth['password'] === '' || !hash_equals($auth['password'], $password)) {
+      json_out(['error' => 'Senha inválida'], 401);
+    }
+    $orderId = trim((string) ($body['id'] ?? $body['orderId'] ?? ''));
+    if ($orderId === '') {
+      json_out(['error' => 'Pedido inválido'], 400);
+    }
+    try {
+      $ok = aurora_delete_order($pdo, $orderId);
+      json_out(['ok' => $ok, 'id' => $orderId]);
+    } catch (Throwable $e) {
+      json_out(['error' => 'Falha ao excluir pedido', 'detail' => $e->getMessage()], 500);
     }
   }
 

@@ -551,6 +551,32 @@ const Storage = (() => {
 
     const run = async () => {
       try {
+        // Antes de salvar tudo: puxa pedidos do MySQL pra não apagar pedidos do site
+        try {
+          clearApiBreaker();
+          const remoteRes = await apiFetch(API + '?full=1&t=' + Date.now(), {
+            headers: { 'X-Admin-Password': password },
+          }, 20000, { force: true });
+          if (remoteRes.ok) {
+            const remote = await remoteRes.json().catch(() => null);
+            if (remote && Array.isArray(remote.orders) && remote.orders.length) {
+              const local = Array.isArray(data.orders) ? data.orders.slice() : [];
+              const byId = new Set(local.map((o) => String(o.id || '')));
+              const byNum = new Set(local.map((o) => String(o.number || '')));
+              remote.orders.forEach((ro) => {
+                const id = String(ro?.id || '');
+                const num = String(ro?.number || '');
+                if (id && byId.has(id)) return;
+                if (num && byNum.has(num)) return;
+                local.push(ro);
+                if (id) byId.add(id);
+                if (num) byNum.add(num);
+              });
+              data.orders = local;
+            }
+          }
+        } catch { /* segue com o payload atual */ }
+
         const payload = JSON.stringify({ data });
         // Foto em data-URL deixa o JSON grande — dá mais tempo
         const timeoutMs = payload.length > 400000 ? 90000 : 25000;

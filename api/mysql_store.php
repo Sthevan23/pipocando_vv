@@ -941,8 +941,12 @@ function aurora_save_all(PDO $pdo, array $payload): void {
       }
     }
 
-    // Pedidos + itens
+    // Pedidos + itens — preserva pedidos do site que o admin ainda não carregou
     $oldOrdersForStock = aurora_load_orders_with_items($pdo);
+    $payload['orders'] = aurora_merge_orders_preserve_missing(
+      is_array($payload['orders'] ?? null) ? $payload['orders'] : [],
+      aurora_load_all_orders_full($pdo)
+    );
     $pdo->exec('DELETE FROM order_items');
     $pdo->exec('DELETE FROM orders');
     $orderStmt = $pdo->prepare(
@@ -1254,6 +1258,101 @@ function aurora_collect_active_order_stock(array $orders): array {
   return $map;
 }
 
+/**
+ * Pedidos completos do banco (mesmo formato do painel).
+ */
+function aurora_load_all_orders_full(PDO $pdo): array {
+  if (!aurora_table_exists($pdo, 'orders')) return [];
+
+  $itemsByOrder = [];
+  if (aurora_table_exists($pdo, 'order_items')) {
+    foreach ($pdo->query('SELECT * FROM order_items ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC) as $item) {
+      $oid = (string) ($item['order_id'] ?? '');
+      if ($oid === '') continue;
+      if (!isset($itemsByOrder[$oid])) $itemsByOrder[$oid] = [];
+      $itemsByOrder[$oid][] = [
+        'productId' => (string) ($item['product_id'] ?? ''),
+        'name' => (string) ($item['product_name'] ?? 'Item'),
+        'flavor' => (string) ($item['flavor'] ?? ''),
+        'qty' => (int) ($item['qty'] ?? 1),
+        'price' => (float) ($item['price'] ?? 0),
+      ];
+    }
+  }
+
+  $orders = [];
+  foreach ($pdo->query('SELECT * FROM orders ORDER BY ordered_at DESC')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $oid = (string) ($row['id'] ?? '');
+    if ($oid === '') continue;
+    $orders[] = [
+      'id' => $oid,
+      'number' => (string) ($row['number'] ?? ''),
+      'clientId' => (string) ($row['client_id'] ?? ''),
+      'clientName' => (string) ($row['client_name'] ?? ''),
+      'clientWhatsapp' => (string) ($row['client_whatsapp'] ?? ''),
+      'items' => $itemsByOrder[$oid] ?? [],
+      'total' => (float) ($row['total'] ?? 0),
+      'status' => (string) ($row['status'] ?? 'novo'),
+      'date' => date('c', strtotime((string) ($row['ordered_at'] ?? 'now'))),
+      'notes' => (string) ($row['notes'] ?? ''),
+      'deliveryFee' => (float) ($row['delivery_fee'] ?? 0),
+      'discount' => (float) ($row['discount'] ?? 0),
+      'waiveDelivery' => !empty($row['waive_delivery']),
+    ];
+  }
+  return $orders;
+}
+
+/**
+ * Junta pedidos do admin com pedidos só no MySQL (ex.: site),
+ * pra full-save não apagar o que a cliente pediu pelo WhatsApp/site.
+ */
+function aurora_merge_orders_preserve_missing(array $payloadOrders, array $dbOrders): array {
+  $byId = [];
+  $byNumber = [];
+  $merged = [];
+
+  foreach ($payloadOrders as $o) {
+    if (!is_array($o)) continue;
+    $id = (string) ($o['id'] ?? '');
+    $num = (string) ($o['number'] ?? '');
+    $merged[] = $o;
+    if ($id !== '') $byId[$id] = true;
+    if ($num !== '') $byNumber[$num] = true;
+  }
+
+  foreach ($dbOrders as $db) {
+    if (!is_array($db)) continue;
+    $id = (string) ($db['id'] ?? '');
+    $num = (string) ($db['number'] ?? '');
+    if ($id !== '' && isset($byId[$id])) continue;
+    if ($num !== '' && isset($byNumber[$num])) continue;
+    $merged[] = $db;
+    if ($id !== '') $byId[$id] = true;
+    if ($num !== '') $byNumber[$num] = true;
+  }
+
+  return $merged;
+}
+
+function aurora_delete_order(PDO $pdo, string $orderId): bool {
+  $orderId = trim($orderId);
+  if ($orderId === '') return false;
+  $pdo->beginTransaction();
+  try {
+    $delItems = $pdo->prepare('DELETE FROM order_items WHERE order_id = ?');
+    $delItems->execute([$orderId]);
+    $del = $pdo->prepare('DELETE FROM orders WHERE id = ?');
+    $del->execute([$orderId]);
+    $ok = $del->rowCount() > 0;
+    $pdo->commit();
+    return $ok;
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    throw $e;
+  }
+}
+
 function aurora_load_orders_with_items(PDO $pdo): array {
   if (!aurora_table_exists($pdo, 'orders')) return [];
   $itemsByOrder = [];
@@ -1465,61 +1564,76 @@ function aurora_create_order(PDO $pdo, array $order, ?array $client = null): arr
   $orderNumber = sprintf('PED-%d-%03d', $year, $max + 1);
   if ($orderId === '') $orderId = 'o_' . uniqid();
 
-  $pdo->beginTransaction();
-  try {
-    if ($clientId) {
-      $chkClient = $pdo->prepare('SELECT id FROM clients WHERE id = ? LIMIT 1');
-      $chkClient->execute([$clientId]);
-      if (!$chkClient->fetchColumn()) {
-        $clientId = null;
+  $attempts = 0;
+  while ($attempts < 4) {
+    $attempts += 1;
+    $pdo->beginTransaction();
+    try {
+      if ($clientId) {
+        $chkClient = $pdo->prepare('SELECT id FROM clients WHERE id = ? LIMIT 1');
+        $chkClient->execute([$clientId]);
+        if (!$chkClient->fetchColumn()) {
+          $clientId = null;
+        }
       }
-    }
 
-    aurora_reserve_stock_for_order($pdo, $order['items'] ?? []);
+      aurora_reserve_stock_for_order($pdo, $order['items'] ?? []);
 
-    $ins = $pdo->prepare(
-      'INSERT INTO orders (
-        id, number, client_id, client_name, client_whatsapp, total, status, ordered_at,
-        notes, delivery_fee, discount, waive_delivery
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)'
-    );
-    $orderNotes = trim((string) ($order['notes'] ?? ''));
-    $orderDeliveryFee = max(0, (float) ($order['deliveryFee'] ?? 0));
-    $orderDiscount = max(0, (float) ($order['discount'] ?? 0));
-    $orderWaive = !empty($order['waiveDelivery']) ? 1 : 0;
-    $ins->execute([
-      $orderId,
-      $orderNumber,
-      $clientId,
-      $name,
-      $phone,
-      $total,
-      'novo',
-      $orderNotes !== '' ? $orderNotes : null,
-      $orderDeliveryFee,
-      $orderDiscount,
-      $orderWaive,
-    ]);
-
-    $itemStmt = $pdo->prepare(
-      'INSERT INTO order_items (order_id, product_id, product_name, flavor, qty, price)
-       VALUES (?, ?, ?, ?, ?, ?)'
-    );
-    foreach ($order['items'] ?? [] as $item) {
-      $itemStmt->execute([
+      $ins = $pdo->prepare(
+        'INSERT INTO orders (
+          id, number, client_id, client_name, client_whatsapp, total, status, ordered_at,
+          notes, delivery_fee, discount, waive_delivery
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)'
+      );
+      $orderNotes = trim((string) ($order['notes'] ?? ''));
+      $orderDeliveryFee = max(0, (float) ($order['deliveryFee'] ?? 0));
+      $orderDiscount = max(0, (float) ($order['discount'] ?? 0));
+      $orderWaive = !empty($order['waiveDelivery']) ? 1 : 0;
+      $ins->execute([
         $orderId,
-        $item['productId'] ?? $item['id'] ?? null,
-        $item['name'] ?? $item['productName'] ?? 'Item',
-        $item['flavor'] ?? ($item['detail'] ?? ''),
-        (int) ($item['qty'] ?? 1),
-        (float) ($item['price'] ?? 0),
+        $orderNumber,
+        $clientId,
+        $name,
+        $phone,
+        $total,
+        'novo',
+        $orderNotes !== '' ? $orderNotes : null,
+        $orderDeliveryFee,
+        $orderDiscount,
+        $orderWaive,
       ]);
-    }
 
-    $pdo->commit();
-  } catch (Throwable $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    throw $e;
+      $itemStmt = $pdo->prepare(
+        'INSERT INTO order_items (order_id, product_id, product_name, flavor, qty, price)
+         VALUES (?, ?, ?, ?, ?, ?)'
+      );
+      foreach ($order['items'] ?? [] as $item) {
+        $itemStmt->execute([
+          $orderId,
+          $item['productId'] ?? $item['id'] ?? null,
+          $item['name'] ?? $item['productName'] ?? 'Item',
+          $item['flavor'] ?? ($item['detail'] ?? ''),
+          (int) ($item['qty'] ?? 1),
+          (float) ($item['price'] ?? 0),
+        ]);
+      }
+
+      $pdo->commit();
+      break;
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      $msg = $e->getMessage();
+      // Número duplicado sob demanda — tenta o próximo
+      if ($attempts < 4 && preg_match('/duplicate|unique|uk_orders_number/i', $msg)) {
+        $max += 1;
+        $orderNumber = sprintf('PED-%d-%03d', $year, $max + 1);
+        if ($orderId === '' || strpos($orderId, 'o_') === 0) {
+          $orderId = 'o_' . uniqid();
+        }
+        continue;
+      }
+      throw $e;
+    }
   }
 
   try {

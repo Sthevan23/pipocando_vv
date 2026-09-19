@@ -466,7 +466,7 @@ function initPrinter() {
     });
   }, 8000);
 
-  // Auto POS58: busca pedidos novos a cada 8s e imprime
+  // Auto POS58: busca pedidos novos mesmo sem Bluetooth/serial
   setInterval(() => {
     if (document.hidden) return;
     if (!AuroraPrint.getAutoPrint()) return;
@@ -474,15 +474,7 @@ function initPrinter() {
     const onDash = document.getElementById('page-dashboard')?.classList.contains('active');
     if (!onPedidos && !onDash) return;
     refreshOrdersFromCloud({ quiet: true });
-  }, 8000);
-
-  // Liga automático por padrão (POS58 USB)
-  if (AuroraPrint.getAutoPrint() === false) {
-    /* respeita se desligou */
-  } else {
-    AuroraPrint.setAutoPrint(true);
-    updatePrinterUi(AuroraPrint.notifyStatus());
-  }
+  }, 20000);
 }
 
 function initLogout() {
@@ -2096,18 +2088,35 @@ function findOrCreateClient(name, whatsapp) {
 
 function deleteOrder(id) {
   if (!confirm('Deseja excluir este pedido?')) return;
-  const orders = Storage.getOrders().filter(o => o.id !== id);
-  Storage.saveOrdersAsync(orders).then((ok) => {
-    if (!ok) {
-      showToast('Não sincronizou com o servidor. Tente de novo.', 'error');
-      return;
+  const orderId = String(id || '');
+  if (!orderId) return;
+
+  (async () => {
+    try {
+      const password = Storage.getAdminPassword?.() || '';
+      const api = Storage.getApiUrl?.() || '../api/data.php';
+      Storage.clearApiBreaker?.();
+      const res = await fetch(api, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': password,
+        },
+        body: JSON.stringify({ action: 'delete_order', id: orderId }),
+        cache: 'no-store',
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result.ok === false) {
+        throw new Error(result.error || 'Falha ao excluir');
+      }
+      await Storage.pullFull?.();
+      renderOrders();
+      renderDashboard();
+      showToast('Pedido excluído.', 'success');
+    } catch {
+      showToast('Erro ao excluir pedido. Tente atualizar e excluir de novo.', 'error');
     }
-    renderOrders();
-    renderDashboard();
-    showToast('Pedido excluído.', 'success');
-  }).catch(() => {
-    showToast('Erro ao excluir pedido.', 'error');
-  });
+  })();
 }
 
 function openNewOrderModal() {
