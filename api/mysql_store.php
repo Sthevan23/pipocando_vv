@@ -759,6 +759,14 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
         'flavors' => ['Nutella', 'Ninho'],
         'sortBase' => 26,
       ],
+      [
+        'key' => 'ninho-crocante',
+        'name' => 'Pipoca Ninho Crocante',
+        'desc' => 'Ninho com crocante de frutas. Novidade — só no painel.',
+        'image' => 'products/pipoca-ninho-crocante.jpg',
+        'flavors' => ['Ninho', 'Crocante'],
+        'sortBase' => 29,
+      ],
     ];
 
     $chk = $pdo->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');

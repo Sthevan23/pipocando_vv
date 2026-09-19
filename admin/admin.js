@@ -2610,7 +2610,7 @@ function renderProducts() {
           ${onMenu ? '✓ No site' : '✗ Fora'}
         </button>
       </td>
-      <td data-label="Imagem">${adminImgTag(p.image || lookupKnownPhoto(p.id, p.name), p.name)}</td>
+      <td data-label="Imagem">${adminImgTag(lookupKnownPhoto(p.id, p.name) || p.image, p.name)}</td>
       <td data-label="Nome"><strong>${escapeHtml(p.name)}</strong></td>
       <td data-label="Categoria">${Storage.getCategoryName(p.categoryId)}</td>
       <td data-label="Volume">${size ? `<span class="badge badge--info">${escapeHtml(size)}</span>` : '—'}</td>

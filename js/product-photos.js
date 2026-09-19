@@ -16,6 +16,9 @@ window.PIPOCANDO_PHOTO_MAP = {
     'p-painel-nutella-ninho-p': 'products/pipoca-nutella-ninho.jpg',
     'p-painel-nutella-ninho-m': 'products/pipoca-nutella-ninho.jpg',
     'p-painel-nutella-ninho-g': 'products/pipoca-nutella-ninho.jpg',
+    'p-painel-ninho-crocante-p': 'products/pipoca-ninho-crocante.jpg',
+    'p-painel-ninho-crocante-m': 'products/pipoca-ninho-crocante.jpg',
+    'p-painel-ninho-crocante-g': 'products/pipoca-ninho-crocante.jpg',
   },
   byName: {
     'pipoca trufada p': 'products/pipoca-p.jpg',
@@ -36,6 +39,9 @@ window.PIPOCANDO_PHOTO_MAP = {
     'pipoca nutella & ninho p': 'products/pipoca-nutella-ninho.jpg',
     'pipoca nutella & ninho m': 'products/pipoca-nutella-ninho.jpg',
     'pipoca nutella & ninho g': 'products/pipoca-nutella-ninho.jpg',
+    'pipoca ninho crocante p': 'products/pipoca-ninho-crocante.jpg',
+    'pipoca ninho crocante m': 'products/pipoca-ninho-crocante.jpg',
+    'pipoca ninho crocante g': 'products/pipoca-ninho-crocante.jpg',
   },
 };
 
