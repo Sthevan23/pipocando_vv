@@ -2971,8 +2971,9 @@ async function checkoutCart() {
   // Abre aba vazia AINDA no clique (antes do await) — evita bloqueio de pop-up no desktop
   const waTab = openWhatsAppPlaceholderTab();
 
-  // Sob demanda: não trava o WhatsApp esperando o painel (máx ~5s)
-  const savePromise = Storage.createPublicOrder({
+  // GRAVA NO PAINEL ANTES do WhatsApp — senão o celular mata a requisição ao abrir o WA
+  if (btn) btn.textContent = 'Registrando no painel…';
+  const saved = await Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     address,
@@ -2990,17 +2991,6 @@ async function checkoutCart() {
     notes: notesParts.filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
-  let saved = await Promise.race([
-    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
-    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
-  ]);
-
-  if (saved?.timedOut) {
-    savePromise.then((r) => {
-      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
-    }).catch(() => {});
-  }
-
   let message = buildCartWhatsAppMessage({
     fullName,
     phone,
@@ -3015,11 +3005,11 @@ async function checkoutCart() {
   if (trulyOutside) {
     message += `\n\n(Obs.: distância estimada ≈ ${String(distState.km).replace('.', ',')} km — acima de ${getDeliveryRadiusKm()} km, combinar entrega)`;
   }
-  if (!saved?.ok && !saved?.timedOut) {
-    message += '\n\n(Obs.: pedido enviado pelo site — confirmar no WhatsApp)';
+  if (!saved?.ok) {
+    message += '\n\n(Obs.: confirmar pedido — site tentando gravar no painel)';
   }
 
-  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();
   closeCart();
   if (btn) {
@@ -3027,14 +3017,13 @@ async function checkoutCart() {
     btn.textContent = prevLabel || 'Finalizar pedido';
   }
 
-  // WhatsApp SEMPRE abre — é o canal crítico da loja sob demanda
   const waUrl = openWhatsAppChat(message, { preOpened: waTab });
   showOrderSentPanel({
     orderNumber: saved?.order?.number || '',
     whatsappUrl: waUrl,
     panelNote: saved?.ok
       ? ''
-      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
+      : 'Pedido no WhatsApp. Se não aparecer no painel, toque Atualizar pedidos no admin.',
   });
 }
 
@@ -3123,7 +3112,14 @@ function openWhatsAppChat(text, opts = {}) {
   }
 
   if (isMobileBrowser()) {
-    // Mesma aba no celular — mais confiável
+    // Tenta nova aba pra NÃO matar o salvamento do painel; se bloquear, mesma aba
+    try {
+      const win = window.open(url, '_blank');
+      if (win) {
+        try { win.focus(); } catch { /* ignore */ }
+        return url;
+      }
+    } catch { /* ignore */ }
     window.location.href = url;
     return url;
   }
@@ -3399,7 +3395,8 @@ async function finalizeOrder() {
 
   const waTab = openWhatsAppPlaceholderTab();
 
-  const savePromise = Storage.createPublicOrder({
+  if (btn) btn.textContent = 'Registrando no painel…';
+  const saved = await Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     items: [{
@@ -3413,17 +3410,6 @@ async function finalizeOrder() {
     total: unit,
     notes: ['Entrega', detail].filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
-
-  let saved = await Promise.race([
-    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
-    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
-  ]);
-
-  if (saved?.timedOut) {
-    savePromise.then((r) => {
-      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
-    }).catch(() => {});
-  }
 
   const messageWithFulfillment = buildCartWhatsAppMessage({
     fullName,
@@ -3441,7 +3427,7 @@ async function finalizeOrder() {
     }],
   });
 
-  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
   closeLightbox();
   if (btn) {
     btn.disabled = false;
@@ -3453,7 +3439,7 @@ async function finalizeOrder() {
     whatsappUrl: waUrl,
     panelNote: saved?.ok
       ? ''
-      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
+      : 'Pedido no WhatsApp. Se não aparecer no painel, toque Atualizar pedidos no admin.',
   });
 }
 

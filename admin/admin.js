@@ -466,7 +466,7 @@ function initPrinter() {
     });
   }, 8000);
 
-  // Auto POS58: busca pedidos novos mesmo sem Bluetooth/serial
+  // Auto POS58: busca pedidos novos a cada 8s e imprime
   setInterval(() => {
     if (document.hidden) return;
     if (!AuroraPrint.getAutoPrint()) return;
@@ -474,7 +474,15 @@ function initPrinter() {
     const onDash = document.getElementById('page-dashboard')?.classList.contains('active');
     if (!onPedidos && !onDash) return;
     refreshOrdersFromCloud({ quiet: true });
-  }, 20000);
+  }, 8000);
+
+  // Liga automático por padrão (POS58 USB)
+  if (AuroraPrint.getAutoPrint() === false) {
+    /* respeita se desligou */
+  } else {
+    AuroraPrint.setAutoPrint(true);
+    updatePrinterUi(AuroraPrint.notifyStatus());
+  }
 }
 
 function initLogout() {
