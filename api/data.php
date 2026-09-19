@@ -190,6 +190,7 @@ if ($method === 'POST') {
 
     try {
       $pdo = aurora_db(true);
+      try { aurora_ensure_ninho_product($pdo); } catch (Throwable $e) {}
       $stored = aurora_load_all($pdo, 'full');
     } catch (Throwable $e) {
       json_out(['error' => 'Falha ao ler MySQL', 'detail' => $e->getMessage()], 500);

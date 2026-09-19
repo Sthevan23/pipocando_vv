@@ -182,6 +182,12 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     return null;
   }
 
+  try {
+    aurora_ensure_ninho_product($pdo);
+  } catch (Throwable $e) {
+    // segue mesmo sem o produto
+  }
+
   if (function_exists('aurora_protect_product_photos')) {
     aurora_protect_product_photos($pdo);
   }
@@ -258,6 +264,10 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     }
     if (!empty($priceMap[$pid])) {
       $product['flavorPrices'] = $priceMap[$pid];
+    }
+    // Pipocas Normais = sabor fixo, sem escolher coberturas
+    if ($product['categoryId'] === 'cat-pipocas-normais' || $pid === 'p-pipoca-ninho-m') {
+      $product['flavorSlots'] = 0;
     }
     $products[] = $product;
   }
@@ -588,6 +598,103 @@ function aurora_ensure_sort_order_columns(PDO $pdo): void {
     } catch (Throwable $e) {
       // ignore — falha explícita virá no UPDATE/INSERT
     }
+  }
+}
+
+/**
+ * Garante Pipoca Gourmet de Leite Ninho no MySQL (painel + site).
+ */
+function aurora_ensure_ninho_product(PDO $pdo): void {
+  if (!aurora_table_exists($pdo, 'products') || !aurora_table_exists($pdo, 'categories')) {
+    return;
+  }
+
+  try {
+    aurora_ensure_sort_order_columns($pdo);
+
+    $catId = 'cat-pipocas-normais';
+    $chkCat = $pdo->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $chkCat->execute([$catId]);
+    if ($chkCat->fetchColumn()) {
+      $updCat = $pdo->prepare(
+        'UPDATE categories SET name = ?, slug = ?, sort_order = ? WHERE id = ?'
+      );
+      $updCat->execute(['Pipocas Normais', 'pipocas-normais', 0, $catId]);
+    } else {
+      $insCat = $pdo->prepare(
+        'INSERT INTO categories (id, name, slug, sort_order) VALUES (?, ?, ?, ?)'
+      );
+      $insCat->execute([$catId, 'Pipocas Normais', 'pipocas-normais', 0]);
+    }
+
+    $pid = 'p-pipoca-ninho-m';
+    $name = 'Pipoca Gourmet de Leite Ninho';
+    $desc = 'Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M 500 ml.';
+    $price = 35.0;
+    $image = 'products/pipoca-ninho-m.jpg';
+    $slug = 'pipoca-gourmet-ninho-m';
+    $size = 'M · 500ml';
+
+    $hasAvailable = false;
+    $hasStock = false;
+    try {
+      $hasAvailable = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'available'")->fetch();
+      $hasStock = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'stock'")->fetch();
+    } catch (Throwable $e) {
+      $hasAvailable = false;
+      $hasStock = false;
+    }
+
+    $chk = $pdo->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
+    $chk->execute([$pid]);
+    $exists = (bool) $chk->fetchColumn();
+
+    if ($exists) {
+      $sql = 'UPDATE products SET
+        name = ?, description = ?, price = ?, category_id = ?, image = ?,
+        featured = 1, slug = ?, size = ?, promo_active = 0, promo_price = NULL,
+        promo_label = \'\', best_seller = 1, active = 1, sort_order = 0';
+      $params = [$name, $desc, $price, $catId, $image, $slug, $size];
+      if ($hasAvailable) {
+        $sql .= ', available = 1';
+      }
+      $sql .= ' WHERE id = ?';
+      $params[] = $pid;
+      $pdo->prepare($sql)->execute($params);
+    } else {
+      // Empurra os outros uma casa pra Ninho ficar em primeiro
+      try {
+        $pdo->exec('UPDATE products SET sort_order = sort_order + 1');
+      } catch (Throwable $e) {
+        // ignore
+      }
+
+      $cols = 'id, name, description, price, price_from, category_id, image, featured, slug, size,
+               promo_active, promo_price, promo_label, best_seller, active';
+      $vals = '?, ?, ?, ?, 0, ?, ?, 1, ?, ?, 0, NULL, \'\', 1, 1';
+      $params = [$pid, $name, $desc, $price, $catId, $image, $slug, $size];
+      if ($hasAvailable) {
+        $cols .= ', available';
+        $vals .= ', 1';
+      }
+      if ($hasStock) {
+        $cols .= ', stock';
+        $vals .= ', NULL';
+      }
+      $cols .= ', sort_order';
+      $vals .= ', 0';
+      $pdo->prepare("INSERT INTO products ($cols) VALUES ($vals)")->execute($params);
+    }
+
+    // Sabor fixo Ninho (sem seletor de coberturas no site — flavorSlots via categoria)
+    if (aurora_table_exists($pdo, 'product_flavors')) {
+      $pdo->prepare('DELETE FROM product_flavors WHERE product_id = ?')->execute([$pid]);
+      $pdo->prepare(
+        'INSERT INTO product_flavors (product_id, flavor, sort_order) VALUES (?, ?, 0)'
+      )->execute([$pid, 'Ninho']);
+    }
+  } catch (Throwable $e) {
+    // Não derruba login/painel se o ensure falhar
   }
 }
 
@@ -1186,6 +1293,11 @@ function aurora_merge_catalog_extras(array $payload): array {
  * Grava catalog.json na raiz do site — HTML/JS leem sem MySQL/PHP.
  */
 function aurora_write_public_catalog(PDO $pdo): bool {
+  try {
+    aurora_ensure_ninho_product($pdo);
+  } catch (Throwable $e) {
+    // ignore
+  }
   $data = aurora_load_all($pdo, 'public');
   if (!$data) return false;
 
