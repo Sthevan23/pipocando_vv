@@ -1933,16 +1933,17 @@ const Storage = (() => {
     }
 
     // Pedido sempre tenta a API de verdade (não fica preso no breaker 503)
+    // Timeout curto: sob demanda o WhatsApp não pode esperar o painel
     clearApiBreaker();
     let loyalty = null;
     let lastError = 'Sem conexão com a API Hostinger';
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const res = await apiFetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'create_order', order, client }),
-        }, 30000, { force: true });
+        }, 10000, { force: true });
         const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.orderNumber) order.number = result.orderNumber;
@@ -1959,22 +1960,22 @@ const Storage = (() => {
         }
         if (res.status === 503 || res.status === 403) {
           lastError = 'Servidor ocupado agora. Aguarde 1 minuto e tente de novo.';
-          await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
         const detail = result.detail ? ` (${result.detail})` : '';
         lastError = (result.error || 'Falha ao gravar no painel') + detail;
         // Estoque / erros transitórios: tenta de novo
-        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 2) {
-          await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 1) {
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
         return { ok: false, error: lastError };
       } catch {
         lastError = 'Sem conexão com a API Hostinger';
-        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
         clearApiBreaker();
       }
     }

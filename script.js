@@ -2971,7 +2971,8 @@ async function checkoutCart() {
   // Abre aba vazia AINDA no clique (antes do await) — evita bloqueio de pop-up no desktop
   const waTab = openWhatsAppPlaceholderTab();
 
-  const saved = await Storage.createPublicOrder({
+  // Sob demanda: não trava o WhatsApp esperando o painel (máx ~5s)
+  const savePromise = Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     address,
@@ -2989,17 +2990,15 @@ async function checkoutCart() {
     notes: notesParts.filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
-  if (!saved?.ok) {
-    closeWhatsAppPlaceholderTab(waTab);
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prevLabel || 'Finalizar pedido';
-    }
-    if (error) {
-      error.textContent = saved?.error || 'Não deu para gravar no painel. Tente de novo em instantes.';
-      error.hidden = false;
-    }
-    return;
+  let saved = await Promise.race([
+    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
+  ]);
+
+  if (saved?.timedOut) {
+    savePromise.then((r) => {
+      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
+    }).catch(() => {});
   }
 
   let message = buildCartWhatsAppMessage({
@@ -3016,8 +3015,11 @@ async function checkoutCart() {
   if (trulyOutside) {
     message += `\n\n(Obs.: distância estimada ≈ ${String(distState.km).replace('.', ',')} km — acima de ${getDeliveryRadiusKm()} km, combinar entrega)`;
   }
+  if (!saved?.ok && !saved?.timedOut) {
+    message += '\n\n(Obs.: pedido enviado pelo site — confirmar no WhatsApp)';
+  }
 
-  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();
   closeCart();
   if (btn) {
@@ -3025,10 +3027,14 @@ async function checkoutCart() {
     btn.textContent = prevLabel || 'Finalizar pedido';
   }
 
+  // WhatsApp SEMPRE abre — é o canal crítico da loja sob demanda
   const waUrl = openWhatsAppChat(message, { preOpened: waTab });
   showOrderSentPanel({
     orderNumber: saved?.order?.number || '',
     whatsappUrl: waUrl,
+    panelNote: saved?.ok
+      ? ''
+      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
   });
 }
 
@@ -3131,7 +3137,7 @@ function openWhatsAppChat(text, opts = {}) {
   return url;
 }
 
-function showOrderSentPanel({ orderNumber = '', whatsappUrl = '' } = {}) {
+function showOrderSentPanel({ orderNumber = '', whatsappUrl = '', panelNote = '' } = {}) {
   let el = document.getElementById('order-sent-panel');
   if (!el) {
     el = document.createElement('div');
@@ -3141,13 +3147,18 @@ function showOrderSentPanel({ orderNumber = '', whatsappUrl = '' } = {}) {
     document.body.appendChild(el);
   }
 
-  const num = orderNumber ? `Pedido <strong>${escapeHtml(String(orderNumber))}</strong> registrado.` : 'Pedido registrado no painel.';
+  const num = orderNumber
+    ? `Pedido <strong>${escapeHtml(String(orderNumber))}</strong> registrado.`
+    : 'Pedido pronto para confirmar.';
+  const hint = panelNote
+    ? escapeHtml(panelNote)
+    : 'Toque abaixo para confirmar no WhatsApp da loja.';
   el.innerHTML = `
     <div class="order-sent-panel__card" role="dialog" aria-modal="true" aria-labelledby="order-sent-title">
       <button type="button" class="order-sent-panel__close" id="order-sent-close" aria-label="Fechar">×</button>
       <p class="order-sent-panel__eyebrow">Tudo certo</p>
       <h3 id="order-sent-title">Pedido enviado!</h3>
-      <p class="order-sent-panel__text">${num} Toque abaixo para confirmar no WhatsApp da loja.</p>
+      <p class="order-sent-panel__text">${num} ${hint}</p>
       <a class="btn btn--primary order-sent-panel__wa" id="order-sent-wa" href="${whatsappUrl || buildWhatsAppUrl('Olá! Fiz um pedido no site.')}" target="_blank" rel="noopener">
         <i class="fab fa-whatsapp" aria-hidden="true"></i> Abrir WhatsApp
       </a>
@@ -3166,7 +3177,6 @@ function showOrderSentPanel({ orderNumber = '', whatsappUrl = '' } = {}) {
   el.addEventListener('click', (e) => {
     if (e.target === el) close();
   });
-  // No mobile, se já navegou pro WA, o painel pode nem aparecer — ok
 }
 
 function escapeHtml(str) {
@@ -3389,7 +3399,7 @@ async function finalizeOrder() {
 
   const waTab = openWhatsAppPlaceholderTab();
 
-  const saved = await Storage.createPublicOrder({
+  const savePromise = Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     items: [{
@@ -3404,22 +3414,22 @@ async function finalizeOrder() {
     notes: ['Entrega', detail].filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
 
-  if (!saved?.ok) {
-    closeWhatsAppPlaceholderTab(waTab);
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prevLabel || 'Finalizar este pedido';
-    }
-    error.textContent = saved?.error || 'Não deu para registrar o pedido. Tente de novo.';
-    error.hidden = false;
-    return;
+  let saved = await Promise.race([
+    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
+  ]);
+
+  if (saved?.timedOut) {
+    savePromise.then((r) => {
+      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
+    }).catch(() => {});
   }
 
   const messageWithFulfillment = buildCartWhatsAppMessage({
     fullName,
     phone,
     fulfillment,
-    loyalty: saved.loyalty || null,
+    loyalty: saved?.loyalty || null,
     orderNumber: saved?.order?.number || '',
     items: [{
       name: product.name,
@@ -3431,7 +3441,7 @@ async function finalizeOrder() {
     }],
   });
 
-  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
   closeLightbox();
   if (btn) {
     btn.disabled = false;
@@ -3441,6 +3451,9 @@ async function finalizeOrder() {
   showOrderSentPanel({
     orderNumber: saved?.order?.number || '',
     whatsappUrl: waUrl,
+    panelNote: saved?.ok
+      ? ''
+      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
   });
 }
 
