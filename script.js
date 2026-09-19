@@ -1428,15 +1428,18 @@ function productCardHTML(p, { bestSeller = false } = {}) {
   const flavorsHint = needsFlavorPick
     ? `<p class="product-card__flavor-hint">${slots > 1 ? 'Até 2 coberturas no pote' : '1 cobertura'}</p>`
     : '';
+  const isNovelty = p.isNew === true || p.id === 'p-pipoca-ninho-m';
   const badge = unavailable
     ? '<span class="product-card__badge product-card__badge--off">Indisponível</span>'
-    : bestSeller
-      ? '<span class="product-card__badge product-card__badge--best">Mais vendido</span>'
-      : p.promoActive
-        ? `<span class="product-card__promo">${p.promoLabel || 'Promoção'}</span>`
-        : p.featured
-          ? '<span class="product-card__badge">Destaque</span>'
-          : '';
+    : isNovelty
+      ? '<span class="product-card__badge product-card__badge--new">Novidade</span>'
+      : bestSeller
+        ? '<span class="product-card__badge product-card__badge--best">Mais vendido</span>'
+        : p.promoActive
+          ? `<span class="product-card__promo">${p.promoLabel || 'Promoção'}</span>`
+          : p.featured
+            ? '<span class="product-card__badge">Destaque</span>'
+            : '';
   const size = p.size ? `<span class="product-card__size">${p.size}</span>` : '';
   const orderAttr = unavailable ? '' : ` data-order="${p.id}"`;
   const addBtn = unavailable
@@ -1550,8 +1553,10 @@ function renderPipocasSection() {
 
 function getPipocaProducts() {
   return getProducts()
-    .filter((p) => isPipocaProduct(p) && p.active !== false && p.available !== false)
+    .filter((p) => isPipocaMenuProduct(p) && p.active !== false && p.available !== false)
     .sort((a, b) => {
+      const so = Number(a.sortOrder ?? 9999) - Number(b.sortOrder ?? 9999);
+      if (so !== 0) return so;
       const order = { '250ml': 0, '500ml': 1, '1000ml': 2 };
       const sa = order[String(a.size || '').toLowerCase()] ?? 9;
       const sb = order[String(b.size || '').toLowerCase()] ?? 9;
@@ -1562,7 +1567,7 @@ function getPipocaProducts() {
 function pipocaSizeLetter(product) {
   const size = String(product?.size || '').toLowerCase();
   if (size.includes('250')) return 'P';
-  if (size.includes('500')) return 'M';
+  if (size.includes('500') || /\bm\b/.test(size)) return 'M';
   if (size.includes('1000')) return 'G';
   const name = String(product?.name || '');
   const match = name.match(/\b([PMG])\b/i);
@@ -1572,12 +1577,20 @@ function pipocaSizeLetter(product) {
 function pgCatalogCardHTML(p) {
   const unavailable = p.available === false;
   const letter = pipocaSizeLetter(p);
+  const slots = Number(p?.flavorSlots ?? p?.maxFlavors);
+  const fixedFlavor = Number.isFinite(slots) && slots <= 0;
   const max = productMaxFlavorsPerUnit(p);
-  const flavorRule = max > 1 ? 'Até 2 sabores' : '1 sabor';
+  const flavorRule = fixedFlavor
+    ? 'Sabor Ninho'
+    : (max > 1 ? 'Até 2 sabores' : '1 sabor');
   const openAttr = unavailable ? '' : ` data-pg-open="${p.id}"`;
+  const novelty = (p.isNew === true || p.id === 'p-pipoca-ninho-m')
+    ? '<span class="pg-catalog-card__new">Novidade</span>'
+    : '';
 
   return `
     <article class="pg-catalog-card${unavailable ? ' pg-catalog-card--off' : ''}"${openAttr} role="${unavailable ? 'group' : 'button'}" tabindex="${unavailable ? '-1' : '0'}" aria-label="${unavailable ? `${p.name} indisponível` : `Montar ${p.name}`}">
+      ${novelty}
       <span class="pg-catalog-card__letter">${letter || '?'}</span>
       <h3 class="pg-catalog-card__name">${p.name}</h3>
       <p class="pg-catalog-card__rule">${p.size || ''} · ${flavorRule}</p>
@@ -1602,7 +1615,7 @@ function renderProducts() {
     (p) => activeFilter === 'all' || p.categoryId === activeFilter,
   );
   if (activeFilter === 'all') {
-    products = products.filter((p) => !isPipocaProduct(p));
+    products = products.filter((p) => !isPipocaMenuProduct(p));
   }
   const grid = document.getElementById('products-grid');
   const html = products.map((p) => productCardHTML(p)).join('');
@@ -1651,13 +1664,22 @@ function renderGallery() {
   `).join('');
 }
 
+function isPipocaMenuProduct(product) {
+  // Aparece em "Monte sua pipoca" (inclui Ninho / Pipocas Normais)
+  const categoryId = String(product?.categoryId || '');
+  const name = String(product?.name || '').toLowerCase();
+  const id = String(product?.id || '');
+  return categoryId === 'cat-pipocas'
+    || categoryId === 'cat-pipocas-normais'
+    || id === 'p-pipoca-ninho-m'
+    || /\bpipoca\b/.test(name);
+}
+
 function isPipocaProduct(product) {
   // Produto com sabor fixo (ex.: Ninho sem escolha) não usa seletor de coberturas
   const slots = Number(product?.flavorSlots ?? product?.maxFlavors);
   if (Number.isFinite(slots) && slots <= 0) return false;
-  const categoryId = String(product?.categoryId || '');
-  const name = String(product?.name || '').toLowerCase();
-  return categoryId === 'cat-pipocas' || /\bpipoca\b/.test(name);
+  return isPipocaMenuProduct(product);
 }
 
 function pipocaFlavorCatalog() {

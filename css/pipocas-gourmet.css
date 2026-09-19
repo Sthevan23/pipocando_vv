@@ -659,6 +659,7 @@
 
 /* Catálogo (filtro Pipocas no cardápio) */
 .pg-catalog-card {
+  position: relative;
   display: grid;
   gap: 0.75rem;
   padding: 1.25rem;

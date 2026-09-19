@@ -1,6 +1,6 @@
 {
-  "version": 17,
-  "generatedAt": "2026-09-19T20:40:00+00:00",
+  "version": 18,
+  "generatedAt": "2026-09-19T20:50:00+00:00",
   "settings": {
     "name": "Pipocando VV",
     "tagline": "Pipocas Trufadas",
@@ -77,7 +77,7 @@
       "price": 35,
       "categoryId": "cat-pipocas-normais",
       "image": "products/pipoca-ninho-m.jpg",
-      "featured": true,
+      "featured": false,
       "slug": "pipoca-gourmet-ninho-m",
       "size": "M · 500ml",
       "flavorSlots": 0,
@@ -85,7 +85,8 @@
       "promoActive": false,
       "promoPrice": null,
       "promoLabel": "",
-      "bestSeller": true,
+      "bestSeller": false,
+      "isNew": true,
       "active": true,
       "available": true,
       "sortOrder": 0

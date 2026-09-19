@@ -268,6 +268,8 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     // Pipocas Normais = sabor fixo, sem escolher coberturas
     if ($product['categoryId'] === 'cat-pipocas-normais' || $pid === 'p-pipoca-ninho-m') {
       $product['flavorSlots'] = 0;
+      $product['isNew'] = true;
+      $product['featured'] = false;
     }
     $products[] = $product;
   }
@@ -652,8 +654,8 @@ function aurora_ensure_ninho_product(PDO $pdo): void {
     if ($exists) {
       $sql = 'UPDATE products SET
         name = ?, description = ?, price = ?, category_id = ?, image = ?,
-        featured = 1, slug = ?, size = ?, promo_active = 0, promo_price = NULL,
-        promo_label = \'\', best_seller = 1, active = 1, sort_order = 0';
+        featured = 0, slug = ?, size = ?, promo_active = 0, promo_price = NULL,
+        promo_label = \'\', best_seller = 0, active = 1, sort_order = 0';
       $params = [$name, $desc, $price, $catId, $image, $slug, $size];
       if ($hasAvailable) {
         $sql .= ', available = 1';
@@ -671,7 +673,7 @@ function aurora_ensure_ninho_product(PDO $pdo): void {
 
       $cols = 'id, name, description, price, price_from, category_id, image, featured, slug, size,
                promo_active, promo_price, promo_label, best_seller, active';
-      $vals = '?, ?, ?, ?, 0, ?, ?, 1, ?, ?, 0, NULL, \'\', 1, 1';
+      $vals = '?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 0, NULL, \'\', 0, 1';
       $params = [$pid, $name, $desc, $price, $catId, $image, $slug, $size];
       if ($hasAvailable) {
         $cols .= ', available';
