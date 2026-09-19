@@ -2616,7 +2616,7 @@ function renderProducts() {
       <td data-label="Volume">${size ? `<span class="badge badge--info">${escapeHtml(size)}</span>` : '—'}</td>
       <td data-label="Preço">${Number(p.price) > 0 ? Storage.formatCurrency(p.price) : 'Consultar'}${p.promoActive && p.promoPrice != null ? `<br><small style="color:#fc7890">Promo ${Storage.formatCurrency(p.promoPrice)}</small>` : ''}</td>
       <td data-label="Estoque">${formatAdminStock(p)}</td>
-      <td data-label="Status">${p.featured ? '<i class="fas fa-star" style="color:#FFD700"></i>' : '—'}${p.bestSeller ? ' <span class="badge badge--novo">Mais vendido</span>' : ''}${p.promoActive ? ' <span class="badge badge--novo">Promo</span>' : ''}</td>
+      <td data-label="Status">${p.isNew || p.id === 'p-pipoca-ninho-m' ? ' <span class="badge badge--novo">Novidade</span>' : ''}${p.featured ? '<i class="fas fa-star" style="color:#FFD700"></i>' : ''}${p.bestSeller ? ' <span class="badge badge--novo">Mais vendido</span>' : ''}${p.promoActive ? ' <span class="badge badge--novo">Promo</span>' : ''}${!(p.isNew || p.id === 'p-pipoca-ninho-m' || p.featured || p.bestSeller || p.promoActive) ? '—' : ''}</td>
       <td data-label="Ações">
         <div class="table__actions">
           <button class="btn--icon edit" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit"></i></button>

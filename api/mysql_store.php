@@ -184,6 +184,7 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
 
   try {
     aurora_ensure_ninho_product($pdo);
+    aurora_ensure_panel_only_novidades($pdo);
   } catch (Throwable $e) {
     // segue mesmo sem o produto
   }
@@ -270,6 +271,13 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
       $product['flavorSlots'] = 0;
       $product['isNew'] = true;
       $product['featured'] = false;
+    }
+    // Novidades só-painel
+    if (str_starts_with($pid, 'p-painel-')) {
+      $product['isNew'] = true;
+      $product['featured'] = false;
+      if (str_ends_with($pid, '-p')) $product['flavorSlots'] = 1;
+      elseif (str_ends_with($pid, '-m') || str_ends_with($pid, '-g')) $product['flavorSlots'] = 2;
     }
     $products[] = $product;
   }
@@ -697,6 +705,131 @@ function aurora_ensure_ninho_product(PDO $pdo): void {
     }
   } catch (Throwable $e) {
     // Não derruba login/painel se o ensure falhar
+  }
+}
+
+/**
+ * Novidades só no painel (active=0) — não sobem pro site oficial.
+ * P / M / G com fotos novas.
+ */
+function aurora_ensure_panel_only_novidades(PDO $pdo): void {
+  if (!aurora_table_exists($pdo, 'products')) return;
+
+  try {
+    aurora_ensure_sort_order_columns($pdo);
+
+    $hasAvailable = false;
+    $hasStock = false;
+    try {
+      $hasAvailable = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'available'")->fetch();
+      $hasStock = (bool) $pdo->query("SHOW COLUMNS FROM products LIKE 'stock'")->fetch();
+    } catch (Throwable $e) {
+      $hasAvailable = false;
+      $hasStock = false;
+    }
+
+    $sizes = [
+      'p' => ['label' => 'P', 'size' => '250ml', 'price' => 19, 'slots' => 1, 'sort' => 20],
+      'm' => ['label' => 'M', 'size' => '500ml', 'price' => 29, 'slots' => 2, 'sort' => 21],
+      'g' => ['label' => 'G', 'size' => '1000ml', 'price' => 55, 'slots' => 2, 'sort' => 22],
+    ];
+
+    $lines = [
+      [
+        'key' => 'frutas',
+        'name' => 'Pipoca Ninho c/ Frutas Vermelhas',
+        'desc' => 'Pipoca trufada com creme de Ninho e cobertura de frutas vermelhas. Novidade — só no painel.',
+        'image' => 'products/pipoca-ninho-frutas.jpg',
+        'flavors' => ['Ninho', 'Frutas Vermelhas'],
+      ],
+      [
+        'key' => 'meio-cremes',
+        'name' => 'Pipoca Meio a Meio Cremes',
+        'desc' => 'Pote dividido com dois cremes. Novidade — só no painel.',
+        'image' => 'products/pipoca-meio-cremes.jpg',
+        'flavors' => ['Ninho', 'Bueno'],
+      ],
+      [
+        'key' => 'nutella-ninho',
+        'name' => 'Pipoca Nutella & Ninho',
+        'desc' => 'Meio a meio Nutella e Ninho. Novidade — só no painel.',
+        'image' => 'products/pipoca-nutella-ninho.jpg',
+        'flavors' => ['Nutella', 'Ninho'],
+      ],
+    ];
+
+    $chk = $pdo->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
+
+    foreach ($lines as $line) {
+      foreach ($sizes as $sizeKey => $sz) {
+        $pid = 'p-painel-' . $line['key'] . '-' . $sizeKey;
+        $name = $line['name'] . ' ' . $sz['label'];
+        $slug = 'painel-' . $line['key'] . '-' . $sizeKey;
+        $chk->execute([$pid]);
+        $exists = (bool) $chk->fetchColumn();
+
+        if ($exists) {
+          $sql = 'UPDATE products SET
+            name = ?, description = ?, price = ?, category_id = ?, image = ?,
+            featured = 0, slug = ?, size = ?, promo_active = 0, promo_price = NULL,
+            promo_label = \'\', best_seller = 0, active = 0, sort_order = ?';
+          $params = [
+            $name,
+            $line['desc'],
+            $sz['price'],
+            'cat-pipocas',
+            $line['image'],
+            $slug,
+            $sz['size'],
+            $sz['sort'],
+          ];
+          if ($hasAvailable) {
+            $sql .= ', available = 1';
+          }
+          $sql .= ' WHERE id = ?';
+          $params[] = $pid;
+          $pdo->prepare($sql)->execute($params);
+        } else {
+          $cols = 'id, name, description, price, price_from, category_id, image, featured, slug, size,
+                   promo_active, promo_price, promo_label, best_seller, active';
+          $vals = '?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 0, NULL, \'\', 0, 0';
+          $params = [
+            $pid,
+            $name,
+            $line['desc'],
+            $sz['price'],
+            'cat-pipocas',
+            $line['image'],
+            $slug,
+            $sz['size'],
+          ];
+          if ($hasAvailable) {
+            $cols .= ', available';
+            $vals .= ', 1';
+          }
+          if ($hasStock) {
+            $cols .= ', stock';
+            $vals .= ', NULL';
+          }
+          $cols .= ', sort_order';
+          $vals .= ', ?';
+          $params[] = $sz['sort'];
+          $pdo->prepare("INSERT INTO products ($cols) VALUES ($vals)")->execute($params);
+        }
+
+        if (aurora_table_exists($pdo, 'product_flavors')) {
+          $pdo->prepare('DELETE FROM product_flavors WHERE product_id = ?')->execute([$pid]);
+          $insF = $pdo->prepare(
+            'INSERT INTO product_flavors (product_id, flavor, sort_order) VALUES (?, ?, ?)'
+          );
+          foreach (array_values($line['flavors']) as $fi => $flavor) {
+            $insF->execute([$pid, $flavor, $fi]);
+          }
+        }
+      }
+    }
+  } catch (Throwable $e) {
+    // ignore
   }
 }
 
@@ -1223,10 +1356,10 @@ function aurora_save_all(PDO $pdo, array $payload): void {
 }
 
 /**
- * Ao republicar o cardápio, mantém produtos/categorias extras que já estão
- * no catalog.json (ex.: Pipoca Ninho adicionada via Git) e o MySQL ainda não tem.
+ * Ao republicar o cardápio, mantém só produtos que o MySQL ainda NÃO tem.
+ * Se o produto existe no MySQL como "Fora" (active=0), NÃO volta pro site.
  */
-function aurora_merge_catalog_extras(array $payload): array {
+function aurora_merge_catalog_extras(array $payload, array $knownProductIds = []): array {
   $root = dirname(__DIR__);
   $existing = null;
   foreach ([
@@ -1253,6 +1386,8 @@ function aurora_merge_catalog_extras(array $payload): array {
     if (!is_array($ep)) continue;
     $id = (string) ($ep['id'] ?? '');
     if ($id === '' || isset($prodIds[$id])) continue;
+    // Já cadastrado no painel (mesmo "Fora") — respeita o botão No site/Fora
+    if (isset($knownProductIds[$id])) continue;
     if (($ep['active'] ?? true) === false) continue;
     $payload['products'][] = $ep;
     $prodIds[$id] = true;
@@ -1286,7 +1421,7 @@ function aurora_merge_catalog_extras(array $payload): array {
   $payload['version'] = max(
     (int) ($payload['version'] ?? 0),
     (int) ($existing['version'] ?? 0)
-  );
+  ) + 1;
 
   return $payload;
 }
@@ -1355,7 +1490,17 @@ function aurora_write_public_catalog(PDO $pdo): bool {
     'coupons' => $coupons,
   ];
 
-  $payload = aurora_merge_catalog_extras($payload);
+  // IDs que existem no painel (ativos ou fora) — "Fora" não pode voltar pelo JSON antigo
+  $knownIds = [];
+  try {
+    foreach ($pdo->query('SELECT id FROM products')->fetchAll(PDO::FETCH_COLUMN) as $id) {
+      $knownIds[(string) $id] = true;
+    }
+  } catch (Throwable $e) {
+    $knownIds = [];
+  }
+
+  $payload = aurora_merge_catalog_extras($payload, $knownIds);
 
   $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
   if ($json === false) return false;
