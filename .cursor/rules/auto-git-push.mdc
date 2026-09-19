@@ -1,0 +1,16 @@
+---
+description: Sempre commit + push automático após mudanças no site/admin
+alwaysApply: true
+---
+
+# Git automático (Pipocando VV)
+
+Sempre que fizer alterações no projeto (site, admin, API, catálogo, etc.):
+
+1. **Commit e push automaticamente** no final do trabalho — sem esperar o usuário dizer "da o git", "git" ou "push".
+2. Mensagem de commit curta em português, focada no porquê.
+3. Usar: `git add` dos arquivos relevantes → `git commit` → `git push -u origin HEAD`.
+4. Não commitar `.env`, senhas, credenciais ou arquivos com segredos.
+5. Não usar `--force` no push nem alterar git config.
+6. Se não houver mudanças, não criar commit vazio.
+7. Ao terminar, confirmar em uma linha que o push foi feito (branch `main`).
