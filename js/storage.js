@@ -229,12 +229,15 @@ const Storage = (() => {
     try { localStorage.removeItem(KEY); } catch { /* ignore */ }
     const cached = loadPublicCache();
     if (cached && applyPublicCache(cached)) {
+      setTimeout(() => { flushPendingOrders().catch(() => {}); }, 1200);
       return memoryData;
     }
     if (applyDefaultCatalog()) {
+      setTimeout(() => { flushPendingOrders().catch(() => {}); }, 1200);
       return memoryData;
     }
     if (!memoryData) memoryData = emptyStore();
+    setTimeout(() => { flushPendingOrders().catch(() => {}); }, 1200);
     return memoryData;
   }
 
@@ -1866,6 +1869,66 @@ const Storage = (() => {
     }
   }
 
+  const PENDING_ORDERS_KEY = 'pipocando_pending_orders_v1';
+
+  function readPendingOrders() {
+    try {
+      const list = JSON.parse(localStorage.getItem(PENDING_ORDERS_KEY) || '[]');
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePendingOrders(list) {
+    try {
+      localStorage.setItem(PENDING_ORDERS_KEY, JSON.stringify((list || []).slice(-30)));
+    } catch { /* ignore */ }
+  }
+
+  function enqueuePendingOrder(order, client) {
+    const list = readPendingOrders();
+    const id = String(order?.id || '');
+    if (id && list.some((row) => String(row?.order?.id || '') === id)) return;
+    list.push({ order, client, at: Date.now() });
+    writePendingOrders(list);
+  }
+
+  async function postCreateOrder(order, client, timeoutMs = 20000) {
+    const res = await apiFetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create_order', order, client }),
+      keepalive: true,
+    }, timeoutMs, { force: true });
+    const result = await res.json().catch(() => ({}));
+    return { res, result };
+  }
+
+  async function flushPendingOrders() {
+    const list = readPendingOrders();
+    if (!list.length) return 0;
+    clearApiBreaker();
+    const remain = [];
+    let saved = 0;
+    for (const row of list) {
+      if (!row?.order || !row?.client) continue;
+      try {
+        const { res, result } = await postCreateOrder(row.order, row.client, 15000);
+        if (res.ok && result.ok) {
+          saved += 1;
+          continue;
+        }
+        remain.push(row);
+      } catch {
+        remain.push(row);
+      }
+    }
+    writePendingOrders(remain);
+    if (saved) notifyUpdated();
+    return saved;
+  }
+
   async function createPublicOrder({ fullName, whatsapp, items, total, notes, address, deliveryFee, discount }) {
     const phone = String(whatsapp || '').replace(/\D/g, '');
     const name = String(fullName || '').trim();
@@ -1932,19 +1995,13 @@ const Storage = (() => {
       return { ok: false, error: 'Abra pelo site online (não por arquivo local)' };
     }
 
-    // Pedido sempre tenta a API de verdade (não fica preso no breaker 503)
-    // Timeout curto: sob demanda o WhatsApp não pode esperar o painel
+    // Grava no painel ANTES do WhatsApp — keepalive sobrevive se a aba mudar
     clearApiBreaker();
     let loyalty = null;
     let lastError = 'Sem conexão com a API Hostinger';
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const res = await apiFetch(API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create_order', order, client }),
-        }, 10000, { force: true });
-        const result = await res.json().catch(() => ({}));
+        const { res, result } = await postCreateOrder(order, client, 20000);
         if (res.ok && result.ok) {
           if (result.orderNumber) order.number = result.orderNumber;
           if (result.orderId) order.id = result.orderId;
@@ -1960,26 +2017,36 @@ const Storage = (() => {
         }
         if (res.status === 503 || res.status === 403) {
           lastError = 'Servidor ocupado agora. Aguarde 1 minuto e tente de novo.';
-          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
         const detail = result.detail ? ` (${result.detail})` : '';
         lastError = (result.error || 'Falha ao gravar no painel') + detail;
-        // Estoque / erros transitórios: tenta de novo
-        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 1) {
-          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 2) {
+          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
-        return { ok: false, error: lastError };
+        break;
       } catch {
         lastError = 'Sem conexão com a API Hostinger';
-        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
         clearApiBreaker();
       }
     }
-    return { ok: false, error: lastError };
+
+    // Fila local: tenta de novo quando o cliente voltar ao site / painel sincronizar
+    enqueuePendingOrder(order, client);
+    try {
+      const blob = new Blob(
+        [JSON.stringify({ action: 'create_order', order, client })],
+        { type: 'application/json' }
+      );
+      if (navigator.sendBeacon) navigator.sendBeacon(API, blob);
+    } catch { /* ignore */ }
+
+    return { ok: false, error: lastError, queued: true, order };
   }
 
   async function getOrderStatus(phone, orderNumber = '') {
@@ -2052,7 +2119,7 @@ const Storage = (() => {
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,
     isCloudEnabled, wasLoadedFromCache, setAdminPassword, getAdminPassword,
     startCloudPolling, stopCloudPolling, notifyUpdated,
-    createPublicOrder, getOrderStatus, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
+    createPublicOrder, flushPendingOrders, getOrderStatus, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
     sortProductsList, sortCategoriesList, applyProductSortOrders, applyCategorySortOrders,
     saveCatalogOrderAsync, nextProductSortOrder,
     probeCloud, reconnectCloud, apiCoolingDown, clearApiBreaker,
