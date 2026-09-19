@@ -1,6 +1,6 @@
 {
-  "version": 5,
-  "generatedAt": "2026-09-19T20:00:00+00:00",
+  "version": 6,
+  "generatedAt": "2026-09-19T20:20:00+00:00",
   "settings": {
     "name": "Pipocando VV",
     "tagline": "Pipocas Trufadas",
@@ -108,7 +108,7 @@
       "id": "p-pipoca-m",
       "name": "Pipoca Trufada M",
       "description": "Pote 500 ml dividido — escolha até 2 coberturas diferentes ou iguais.",
-      "price": 26,
+      "price": 29,
       "categoryId": "cat-pipocas",
       "image": "products/pipoca-m.jpg",
       "featured": true,

@@ -115,7 +115,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     { id: 'p-pipoca-p', name: 'Pipoca Trufada P', description: 'Pote 250 ml — escolha 1 cobertura.', price: 17, categoryId: 'cat-pipocas', image: 'products/pipoca-p.jpg', featured: true, slug: 'pipoca-trufada-p', size: '250ml', flavorSlots: 1, flavors: ['Ninho', 'Nutella', 'Bueno', 'Cookie'], bestSeller: true, active: true, available: true },
 
-    { id: 'p-pipoca-m', name: 'Pipoca Trufada M', description: 'Pote 500 ml — até 2 coberturas.', price: 26, categoryId: 'cat-pipocas', image: 'products/pipoca-m.jpg', featured: true, slug: 'pipoca-trufada-m', size: '500ml', flavorSlots: 2, flavors: ['Ninho', 'Nutella', 'Bueno', 'Cookie'], bestSeller: true, active: true, available: true },
+    { id: 'p-pipoca-m', name: 'Pipoca Trufada M', description: 'Pote 500 ml — até 2 coberturas.', price: 29, categoryId: 'cat-pipocas', image: 'products/pipoca-m.jpg', featured: true, slug: 'pipoca-trufada-m', size: '500ml', flavorSlots: 2, flavors: ['Ninho', 'Nutella', 'Bueno', 'Cookie'], bestSeller: true, active: true, available: true },
 
     { id: 'p-pipoca-g', name: 'Pipoca Trufada G', description: 'Pote 1 litro — até 2 coberturas.', price: 50, categoryId: 'cat-pipocas', image: 'products/pipoca-g.jpg', featured: true, slug: 'pipoca-trufada-g', size: '1000ml', flavorSlots: 2, flavors: ['Ninho', 'Nutella', 'Bueno', 'Cookie'], bestSeller: true, active: true, available: true },
 
