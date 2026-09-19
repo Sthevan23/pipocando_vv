@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "generatedAt": "2026-09-19T20:00:00+00:00",
   "settings": {
     "name": "Pipocando VV",
@@ -68,14 +68,14 @@
   "products": [
     {
       "id": "p-pipoca-ninho-m",
-      "name": "Pipoca Gourmet Ninho M",
-      "description": "Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M.",
+      "name": "Pipoca Gourmet de Leite Ninho",
+      "description": "Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M 500 ml.",
       "price": 35,
       "categoryId": "cat-pipocas-normais",
       "image": "products/pipoca-ninho-m.jpg",
       "featured": true,
       "slug": "pipoca-gourmet-ninho-m",
-      "size": "500ml",
+      "size": "M · 500ml",
       "flavorSlots": 0,
       "flavors": ["Ninho"],
       "promoActive": false,

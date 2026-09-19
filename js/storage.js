@@ -3,7 +3,7 @@
  */
 const Storage = (() => {
   const KEY = 'pipocando_vv_data';
-  const PUBLIC_CACHE_KEY = 'pipocando_public_catalog_v13';
+  const PUBLIC_CACHE_KEY = 'pipocando_public_catalog_v14';
   const API_DOWN_KEY = 'pipocando_api_down_until';
   const DATA_VERSION = 20;
   const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || '');

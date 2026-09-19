@@ -111,7 +111,7 @@ const PIPOCANDO_DEFAULT_DATA = {
 
   products: [
 
-    { id: 'p-pipoca-ninho-m', name: 'Pipoca Gourmet Ninho M', description: 'Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M.', price: 35, categoryId: 'cat-pipocas-normais', image: 'products/pipoca-ninho-m.jpg', featured: true, slug: 'pipoca-gourmet-ninho-m', size: '500ml', flavorSlots: 0, flavors: ['Ninho'], bestSeller: false, active: true, available: true },
+    { id: 'p-pipoca-ninho-m', name: 'Pipoca Gourmet de Leite Ninho', description: 'Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M 500 ml.', price: 35, categoryId: 'cat-pipocas-normais', image: 'products/pipoca-ninho-m.jpg', featured: true, slug: 'pipoca-gourmet-ninho-m', size: 'M · 500ml', flavorSlots: 0, flavors: ['Ninho'], bestSeller: false, active: true, available: true },
 
     { id: 'p-pipoca-p', name: 'Pipoca Trufada P', description: 'Pote 250 ml — escolha 1 cobertura.', price: 17, categoryId: 'cat-pipocas', image: 'products/pipoca-p.jpg', featured: true, slug: 'pipoca-trufada-p', size: '250ml', flavorSlots: 1, flavors: ['Ninho', 'Nutella', 'Bueno', 'Cookie'], bestSeller: true, active: true, available: true },
 

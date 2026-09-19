@@ -1423,10 +1423,10 @@ function renderFilters() {
 function productCardHTML(p, { bestSeller = false } = {}) {
   const unavailable = p.available === false;
   const slots = productMaxFlavorsPerUnit(p);
-  const flavorsHint = !unavailable && Array.isArray(p.flavors) && p.flavors.length
-    ? `<p class="product-card__flavor-hint">${isPipocaProduct(p)
-      ? (slots > 1 ? 'Até 2 coberturas no pote' : '1 cobertura')
-      : `${p.flavors.length} sabores — toque para escolher e adicionar`}</p>`
+  // Sabor fixo (flavorSlots 0) — sem texto de coberturas/tamanhos extras
+  const needsFlavorPick = !unavailable && isPipocaProduct(p) && slots > 0;
+  const flavorsHint = needsFlavorPick
+    ? `<p class="product-card__flavor-hint">${slots > 1 ? 'Até 2 coberturas no pote' : '1 cobertura'}</p>`
     : '';
   const badge = unavailable
     ? '<span class="product-card__badge product-card__badge--off">Indisponível</span>'
@@ -2020,6 +2020,9 @@ function syncFlavorSlots(qty) {
 }
 
 function productFlavorList(product) {
+  const slots = Number(product?.flavorSlots ?? product?.maxFlavors);
+  // Sabor único fixo — não oferece seletor de coberturas
+  if (Number.isFinite(slots) && slots <= 0) return [];
   let list = Array.isArray(product?.flavors)
     ? product.flavors.map((f) => String(f || '').trim()).filter(Boolean)
     : [];
@@ -2035,6 +2038,8 @@ function productFlavorList(product) {
 }
 
 function productHasFlavors(product) {
+  const slots = Number(product?.flavorSlots ?? product?.maxFlavors);
+  if (Number.isFinite(slots) && slots <= 0) return false;
   return productFlavorList(product).length > 0;
 }
 
@@ -2368,7 +2373,10 @@ function addCurrentProductToCart() {
       });
     }
   } else {
-    pricedLines.push({ flavor: '', qty, price: resolveProductPrice(product, '') });
+    const fixedFlavor = Array.isArray(product.flavors) && product.flavors.length
+      ? String(product.flavors[0] || '').trim()
+      : (/ninho/i.test(String(product.name || '')) ? 'Ninho' : '');
+    pricedLines.push({ flavor: fixedFlavor, qty, price: resolveProductPrice(product, '') });
   }
 
   const bad = pricedLines.find((line) => !(Number(line.price) > 0));
