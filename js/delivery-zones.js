@@ -144,7 +144,9 @@ window.PipocandoDelivery = (() => {
     const origin = getOrigin();
 
     try {
-      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+      });
       if (res.ok) {
         const data = await res.json();
         const lat = Number(data?.location?.coordinates?.latitude);
@@ -192,7 +194,10 @@ window.PipocandoDelivery = (() => {
       if (cache.has(key)) return cache.get(key);
       try {
         const url = `api/geocode.php?q=${encodeURIComponent(q)}&lat=${origin.lat}&lng=${origin.lng}`;
-        const res = await fetch(url, { cache: 'no-store' });
+        const res = await fetch(url, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+        });
         if (res.ok) {
           const data = await res.json();
           const lat = Number(data.lat);
@@ -216,7 +221,9 @@ window.PipocandoDelivery = (() => {
     if (q.length >= 8) {
       try {
         const photon = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=pt`;
-        const res = await fetch(photon);
+        const res = await fetch(photon, {
+          signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+        });
         if (res.ok) {
           const data = await res.json();
           const feats = Array.isArray(data?.features) ? data.features : [];

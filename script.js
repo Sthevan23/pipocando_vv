@@ -52,7 +52,7 @@ function lockBodyScroll() {
         return;
       }
       const scrollable = target.closest(
-        '.order-lightbox__scroll, .order-lightbox__info, .cart-drawer__body, .flavor-options, textarea, input, select'
+        '.order-lightbox__scroll, .order-lightbox__info, .cart-drawer__body, .cart-drawer__foot, .cart-checkout, .cart-drawer__panel, .flavor-options, textarea, input, select, button, a, label'
       );
       if (scrollable) return;
       e.preventDefault();
@@ -2781,6 +2781,7 @@ function closeCart() {
 async function checkoutCart() {
   const error = document.getElementById('cart-error');
   const btn = document.getElementById('cart-checkout-btn');
+  if (btn?.dataset.busy === '1') return;
   if (typeof Storage !== 'undefined' && Storage.isStoreOpen && !Storage.isStoreOpen()) {
     if (error) {
       error.textContent = Storage.storeClosedMessage?.() || 'Loja fechada no momento.';
@@ -2880,11 +2881,22 @@ async function checkoutCart() {
     return;
   }
 
-  // Distância: acima do raio bloqueia o checkout no site
+  // Distância: timeout curto pra não travar o botão no celular
   if (!cartDistanceState || cartDistanceState.address !== address) {
-    if (btn) btn.disabled = true;
-    await verifyCartDeliveryDistance(address);
-    if (btn) btn.disabled = false;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Verificando endereço…';
+    }
+    try {
+      await Promise.race([
+        verifyCartDeliveryDistance(address),
+        new Promise((resolve) => setTimeout(resolve, 3500)),
+      ]);
+    } catch { /* segue */ }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Finalizar pedido';
+    }
   }
   const distState = cartDistanceState || {};
 
@@ -2962,18 +2974,18 @@ async function checkoutCart() {
     notesParts.push(`Cupom ${couponCode}: − ${Storage.formatCurrency(discount)}`);
   }
 
-  const prevLabel = btn?.textContent || '';
+  const prevLabel = btn?.textContent || 'Finalizar pedido';
   if (btn) {
+    btn.dataset.busy = '1';
     btn.disabled = true;
-    btn.textContent = 'Registrando pedido…';
+    btn.textContent = 'Finalizando…';
   }
 
   // Abre aba vazia AINDA no clique (antes do await) — evita bloqueio de pop-up no desktop
   const waTab = openWhatsAppPlaceholderTab();
 
-  // GRAVA NO PAINEL ANTES do WhatsApp — senão o celular mata a requisição ao abrir o WA
-  if (btn) btn.textContent = 'Registrando no painel…';
-  const saved = await Storage.createPublicOrder({
+  // Grava no painel (máx ~8s no celular) — keepalive continua se demorar
+  const savePromise = Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     address,
@@ -2990,6 +3002,16 @@ async function checkoutCart() {
     discount,
     notes: notesParts.filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
+
+  let saved = await Promise.race([
+    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 8000)),
+  ]);
+  if (saved?.timedOut) {
+    savePromise.then((r) => {
+      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
+    }).catch(() => {});
+  }
 
   let message = buildCartWhatsAppMessage({
     fullName,
@@ -3013,6 +3035,7 @@ async function checkoutCart() {
   clearCart();
   closeCart();
   if (btn) {
+    btn.dataset.busy = '0';
     btn.disabled = false;
     btn.textContent = prevLabel || 'Finalizar pedido';
   }

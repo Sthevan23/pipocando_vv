@@ -2257,6 +2257,21 @@ p {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   min-height: 0;
+  touch-action: pan-y;
+}
+
+#cart-checkout-btn {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  min-height: 3rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(233, 30, 140, 0.25);
+  box-shadow: 0 -8px 16px rgba(255, 250, 248, 0.95);
+}
+
+#cart-checkout-btn:disabled {
+  opacity: 0.75;
 }
 
 .cart-drawer__discount[hidden],
@@ -2475,7 +2490,18 @@ p {
   }
 
   .cart-drawer__foot {
-    max-height: min(62vh, 30rem);
+    max-height: min(68vh, 34rem);
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  #cart-checkout-btn {
+    font-size: 1.05rem;
+    min-height: 3.25rem;
+  }
+
+  html.is-scroll-locked .whatsapp-float {
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .cart-drawer .fulfillment {
