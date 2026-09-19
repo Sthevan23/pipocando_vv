@@ -1114,6 +1114,75 @@ function aurora_save_all(PDO $pdo, array $payload): void {
 }
 
 /**
+ * Ao republicar o cardápio, mantém produtos/categorias extras que já estão
+ * no catalog.json (ex.: Pipoca Ninho adicionada via Git) e o MySQL ainda não tem.
+ */
+function aurora_merge_catalog_extras(array $payload): array {
+  $root = dirname(__DIR__);
+  $existing = null;
+  foreach ([
+    $root . DIRECTORY_SEPARATOR . 'catalog.live.json',
+    $root . DIRECTORY_SEPARATOR . 'catalog.json',
+  ] as $path) {
+    if (!is_file($path)) continue;
+    $raw = @file_get_contents($path);
+    $decoded = json_decode(is_string($raw) ? $raw : '', true);
+    if (is_array($decoded) && !empty($decoded['products']) && is_array($decoded['products'])) {
+      $existing = $decoded;
+      break;
+    }
+  }
+  if (!$existing) return $payload;
+
+  $prodIds = [];
+  foreach ($payload['products'] ?? [] as $p) {
+    if (!is_array($p)) continue;
+    $id = (string) ($p['id'] ?? '');
+    if ($id !== '') $prodIds[$id] = true;
+  }
+  foreach ($existing['products'] as $ep) {
+    if (!is_array($ep)) continue;
+    $id = (string) ($ep['id'] ?? '');
+    if ($id === '' || isset($prodIds[$id])) continue;
+    if (($ep['active'] ?? true) === false) continue;
+    $payload['products'][] = $ep;
+    $prodIds[$id] = true;
+  }
+
+  $catIds = [];
+  foreach ($payload['categories'] ?? [] as $c) {
+    if (!is_array($c)) continue;
+    $id = (string) ($c['id'] ?? '');
+    if ($id !== '') $catIds[$id] = true;
+  }
+  if (!isset($payload['categories']) || !is_array($payload['categories'])) {
+    $payload['categories'] = [];
+  }
+  foreach ($existing['categories'] ?? [] as $ec) {
+    if (!is_array($ec)) continue;
+    $id = (string) ($ec['id'] ?? '');
+    if ($id === '' || isset($catIds[$id])) continue;
+    $payload['categories'][] = $ec;
+    $catIds[$id] = true;
+  }
+
+  // Ordena produtos pelo sortOrder (menor = primeiro)
+  usort($payload['products'], static function ($a, $b) {
+    $sa = (int) ($a['sortOrder'] ?? 9999);
+    $sb = (int) ($b['sortOrder'] ?? 9999);
+    if ($sa === $sb) return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+    return $sa <=> $sb;
+  });
+
+  $payload['version'] = max(
+    (int) ($payload['version'] ?? 0),
+    (int) ($existing['version'] ?? 0)
+  );
+
+  return $payload;
+}
+
+/**
  * Grava catalog.json na raiz do site — HTML/JS leem sem MySQL/PHP.
  */
 function aurora_write_public_catalog(PDO $pdo): bool {
@@ -1171,6 +1240,8 @@ function aurora_write_public_catalog(PDO $pdo): bool {
     )),
     'coupons' => $coupons,
   ];
+
+  $payload = aurora_merge_catalog_extras($payload);
 
   $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
   if ($json === false) return false;

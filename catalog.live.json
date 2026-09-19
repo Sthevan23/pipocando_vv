@@ -1,6 +1,6 @@
 {
-  "version": 6,
-  "generatedAt": "2026-09-19T20:20:00+00:00",
+  "version": 17,
+  "generatedAt": "2026-09-19T20:40:00+00:00",
   "settings": {
     "name": "Pipocando VV",
     "tagline": "Pipocas Trufadas",
@@ -28,41 +28,45 @@
     "facebook": "",
     "email": "contato@pipocandovv.com.br",
     "address": "Rua Burarama, 168, Cobilandia — Vila Velha, ES",
-    "hours": "Seg e Ter: fechados · Qua a Sex: 19h30–22h · Sáb e Dom: 12h–18h",
-    "storeStatus": "auto",
-    "openTime": "19:30",
-    "closeTime": "22:00",
+    "hours": "Qui a Dom",
+    "storeStatus": "open",
+    "openTime": "17:00",
+    "closeTime": "21:00",
     "openDays": [0, 3, 4, 5, 6],
     "storeSchedule": [
-      { "days": [3, 4, 5], "open": "19:30", "close": "22:00" },
+      { "days": [3, 4, 5], "open": "17:00", "close": "21:00" },
       { "days": [0, 6], "open": "12:00", "close": "18:00" }
     ],
     "deliveryFee": 5,
-    "deliveryNote": "Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5",
+    "deliveryNote": "Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 7",
     "deliveryRadiusKm": 7,
     "storeLat": -20.3539,
     "storeLng": -40.3558
   },
   "categories": [
     {
-      "id": "cat-pipocas",
-      "name": "🍿 Pipocas Trufadas",
-      "slug": "pipocas-trufadas"
-    },
-    {
       "id": "cat-pipocas-normais",
       "name": "Pipocas Normais",
-      "slug": "pipocas-normais"
+      "slug": "pipocas-normais",
+      "sortOrder": 0
+    },
+    {
+      "id": "cat-pipocas",
+      "name": "🍿 Pipocas Trufadas",
+      "slug": "pipocas-trufadas",
+      "sortOrder": 1
     },
     {
       "id": "cat-combos",
       "name": "Combos",
-      "slug": "combos"
+      "slug": "combos",
+      "sortOrder": 2
     },
     {
       "id": "cat-lembrancinhas",
       "name": "🎀 Lembrancinhas",
-      "slug": "lembrancinhas"
+      "slug": "lembrancinhas",
+      "sortOrder": 3
     }
   ],
   "products": [
@@ -81,28 +85,30 @@
       "promoActive": false,
       "promoPrice": null,
       "promoLabel": "",
-      "bestSeller": false,
+      "bestSeller": true,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 0
     },
     {
       "id": "p-pipoca-p",
       "name": "Pipoca Trufada P",
       "description": "Pote 250 ml com pipocas caramelizadas e cobertura generosa — escolha 1 sabor.",
-      "price": 17,
+      "price": 19,
       "categoryId": "cat-pipocas",
       "image": "products/pipoca-p.jpg",
       "featured": true,
       "slug": "pipoca-trufada-p",
       "size": "250ml",
       "flavorSlots": 1,
-      "flavors": ["Ninho", "Nutella", "Bueno", "Cookie"],
+      "flavors": ["Bueno", "Nuttella", "Ninho", "Ovomaltine"],
       "promoActive": false,
       "promoPrice": null,
       "promoLabel": "",
       "bestSeller": true,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 1
     },
     {
       "id": "p-pipoca-m",
@@ -115,32 +121,34 @@
       "slug": "pipoca-trufada-m",
       "size": "500ml",
       "flavorSlots": 2,
-      "flavors": ["Ninho", "Nutella", "Bueno", "Cookie"],
+      "flavors": ["Bueno", "Nuttella", "Ninho", "Ovomaltine"],
       "promoActive": false,
       "promoPrice": null,
       "promoLabel": "",
       "bestSeller": true,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 2
     },
     {
       "id": "p-pipoca-g",
       "name": "Pipoca Trufada G",
       "description": "Pote 1 litro para compartilhar — até 2 coberturas no pote dividido.",
-      "price": 50,
+      "price": 55,
       "categoryId": "cat-pipocas",
       "image": "products/pipoca-g.jpg",
       "featured": true,
       "slug": "pipoca-trufada-g",
       "size": "1000ml",
       "flavorSlots": 2,
-      "flavors": ["Ninho", "Nutella", "Bueno", "Cookie"],
+      "flavors": ["Bueno", "Nuttella", "Ninho", "Ovomaltine"],
       "promoActive": false,
       "promoPrice": null,
       "promoLabel": "",
       "bestSeller": true,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 3
     },
     {
       "id": "p-combo-dupla",
@@ -153,13 +161,14 @@
       "slug": "combo-dupla-vv",
       "size": "2×500ml",
       "flavorSlots": 2,
-      "flavors": ["Ninho", "Nutella", "Bueno", "Cookie"],
+      "flavors": ["Bueno", "Nuttella", "Ninho", "Ovomaltine"],
       "promoActive": true,
       "promoPrice": 45,
       "promoLabel": "Promoção",
       "bestSeller": false,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 4
     },
     {
       "id": "p-lembrancinha-vermelha",
@@ -178,7 +187,8 @@
       "promoLabel": "",
       "bestSeller": false,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 5
     },
     {
       "id": "p-lembrancinha-azul",
@@ -197,7 +207,8 @@
       "promoLabel": "",
       "bestSeller": false,
       "active": true,
-      "available": true
+      "available": true,
+      "sortOrder": 6
     }
   ],
   "reviews": [],
@@ -216,6 +227,7 @@
     }
   ],
   "gallery": [
+    "products/pipoca-ninho-m.jpg",
     "products/galeria-1.jpg",
     "products/galeria-2.jpg",
     "products/galeria-3.jpg",
