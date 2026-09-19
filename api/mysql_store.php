@@ -729,9 +729,9 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
     }
 
     $sizes = [
-      'p' => ['label' => 'P', 'size' => '250ml', 'price' => 19, 'slots' => 1, 'sort' => 20],
-      'm' => ['label' => 'M', 'size' => '500ml', 'price' => 29, 'slots' => 2, 'sort' => 21],
-      'g' => ['label' => 'G', 'size' => '1000ml', 'price' => 55, 'slots' => 2, 'sort' => 22],
+      'p' => ['label' => 'P', 'size' => '250ml', 'price' => 19, 'slots' => 1],
+      'm' => ['label' => 'M', 'size' => '500ml', 'price' => 29, 'slots' => 2],
+      'g' => ['label' => 'G', 'size' => '1000ml', 'price' => 55, 'slots' => 2],
     ];
 
     $lines = [
@@ -741,6 +741,7 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
         'desc' => 'Pipoca trufada com creme de Ninho e cobertura de frutas vermelhas. Novidade — só no painel.',
         'image' => 'products/pipoca-ninho-frutas.jpg',
         'flavors' => ['Ninho', 'Frutas Vermelhas'],
+        'sortBase' => 20,
       ],
       [
         'key' => 'meio-cremes',
@@ -748,6 +749,7 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
         'desc' => 'Pote dividido com dois cremes. Novidade — só no painel.',
         'image' => 'products/pipoca-meio-cremes.jpg',
         'flavors' => ['Ninho', 'Bueno'],
+        'sortBase' => 23,
       ],
       [
         'key' => 'nutella-ninho',
@@ -755,16 +757,19 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
         'desc' => 'Meio a meio Nutella e Ninho. Novidade — só no painel.',
         'image' => 'products/pipoca-nutella-ninho.jpg',
         'flavors' => ['Nutella', 'Ninho'],
+        'sortBase' => 26,
       ],
     ];
 
     $chk = $pdo->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
+    $sizeOffset = ['p' => 0, 'm' => 1, 'g' => 2];
 
     foreach ($lines as $line) {
       foreach ($sizes as $sizeKey => $sz) {
         $pid = 'p-painel-' . $line['key'] . '-' . $sizeKey;
         $name = $line['name'] . ' ' . $sz['label'];
         $slug = 'painel-' . $line['key'] . '-' . $sizeKey;
+        $sort = (int) $line['sortBase'] + (int) $sizeOffset[$sizeKey];
         $chk->execute([$pid]);
         $exists = (bool) $chk->fetchColumn();
 
@@ -781,7 +786,7 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
             $line['image'],
             $slug,
             $sz['size'],
-            $sz['sort'],
+            $sort,
           ];
           if ($hasAvailable) {
             $sql .= ', available = 1';
@@ -813,7 +818,7 @@ function aurora_ensure_panel_only_novidades(PDO $pdo): void {
           }
           $cols .= ', sort_order';
           $vals .= ', ?';
-          $params[] = $sz['sort'];
+          $params[] = $sort;
           $pdo->prepare("INSERT INTO products ($cols) VALUES ($vals)")->execute($params);
         }
 

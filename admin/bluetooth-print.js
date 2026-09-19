@@ -737,8 +737,7 @@ ${safe}
   async function printNewOrders(orders, opts = {}) {
     if (!getAutoPrint()) return { printed: 0, skipped: true };
     if (!isConnected()) await tryReconnect();
-    // POS58 USB: sempre Windows (iframe silencioso) — serial/BT costuma falhar nesse modelo
-    const viaWindows = true;
+    const viaWindows = !isConnected();
     seedPrintedFromOrders(orders);
     const list = (orders || []).filter((o) => {
       if (!o?.id) return false;
@@ -749,9 +748,14 @@ ${safe}
     let printed = 0;
     for (const order of list) {
       try {
-        await printViaWindows(order, { ...opts, silent: true });
+        if (viaWindows) {
+          // POS58 no USB: imprime pelo Windows (iframe)
+          await printViaWindows(order, { ...opts, silent: true });
+        } else {
+          await printOrder(order, { ...opts, allowWindowsFallback: false });
+        }
         printed += 1;
-        await new Promise((r) => setTimeout(r, 1800));
+        await new Promise((r) => setTimeout(r, viaWindows ? 2200 : 400));
       } catch (err) {
         console.warn('[Pipocando] Falha ao imprimir pedido', order?.number, err);
         break;
