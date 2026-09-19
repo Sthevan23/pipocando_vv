@@ -3,7 +3,7 @@
  */
 const Storage = (() => {
   const KEY = 'pipocando_vv_data';
-  const PUBLIC_CACHE_KEY = 'pipocando_public_catalog_v12';
+  const PUBLIC_CACHE_KEY = 'pipocando_public_catalog_v13';
   const API_DOWN_KEY = 'pipocando_api_down_until';
   const DATA_VERSION = 20;
   const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || '');
@@ -301,24 +301,6 @@ const Storage = (() => {
     }
   }
 
-  /** Fetch que NÃO aborta — keepalive sobrevive quando o celular abre o WhatsApp. */
-  async function fetchKeepalive(url, options = {}, ms = 20000) {
-    const fetchPromise = fetch(url, {
-      ...options,
-      cache: 'no-store',
-      keepalive: true,
-    });
-    let timer;
-    const timeoutPromise = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error('timeout')), ms);
-    });
-    try {
-      return await Promise.race([fetchPromise, timeoutPromise]);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   function apiCoolingDown() {
     try {
       const until = Number(localStorage.getItem(API_DOWN_KEY) || 0);
@@ -400,7 +382,6 @@ const Storage = (() => {
 
   async function initCloud({ full = false } = {}) {
     init();
-    try { flushPendingOrders(); } catch { /* ignore */ }
     if (!full) {
       // Visitante: ZERO PHP/MySQL — só catalog.json estático (+ cache local).
       try {
@@ -1885,76 +1866,6 @@ const Storage = (() => {
     }
   }
 
-  const PENDING_ORDERS_KEY = 'pipocando_pending_orders_v1';
-
-  function loadPendingOrders() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(PENDING_ORDERS_KEY) || '[]');
-      return Array.isArray(raw) ? raw : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function savePendingOrders(list) {
-    try {
-      localStorage.setItem(PENDING_ORDERS_KEY, JSON.stringify((list || []).slice(-20)));
-    } catch { /* ignore */ }
-  }
-
-  function queuePendingOrder(order, client) {
-    const list = loadPendingOrders().filter((p) => p?.order?.id !== order.id);
-    list.push({ order, client, at: Date.now() });
-    savePendingOrders(list);
-  }
-
-  function removePendingOrder(orderId) {
-    savePendingOrders(loadPendingOrders().filter((p) => p?.order?.id !== orderId));
-  }
-
-  function beaconCreateOrder(order, client) {
-    try {
-      if (typeof navigator === 'undefined' || !navigator.sendBeacon) return false;
-      const body = JSON.stringify({ action: 'create_order', order, client });
-      const blob = new Blob([body], { type: 'application/json' });
-      return navigator.sendBeacon(API, blob);
-    } catch {
-      return false;
-    }
-  }
-
-  async function postCreateOrder(order, client) {
-    clearApiBreaker();
-    const body = JSON.stringify({ action: 'create_order', order, client });
-    // keepalive: pedido continua gravando mesmo se o WhatsApp abrir e a página sair
-    const res = await fetchKeepalive(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    }, 18000);
-    const result = await res.json().catch(() => ({}));
-    return { res, result };
-  }
-
-  async function flushPendingOrders() {
-    const list = loadPendingOrders();
-    if (!list.length) return 0;
-    let done = 0;
-    for (const pending of list) {
-      if (!pending?.order || !pending?.client) continue;
-      try {
-        const { res, result } = await postCreateOrder(pending.order, pending.client);
-        if (res.ok && result.ok) {
-          removePendingOrder(pending.order.id);
-          done += 1;
-        }
-      } catch {
-        // tenta de novo na próxima visita
-      }
-    }
-    return done;
-  }
-
   async function createPublicOrder({ fullName, whatsapp, items, total, notes, address, deliveryFee, discount }) {
     const phone = String(whatsapp || '').replace(/\D/g, '');
     const name = String(fullName || '').trim();
@@ -1962,9 +1873,6 @@ const Storage = (() => {
     if (!name || phone.length < 10 || !items || !items.length) {
       return { ok: false, error: 'Dados incompletos' };
     }
-
-    // Reenvia pedidos que falharam antes (ex.: celular abriu WA e matou a requisição)
-    try { await flushPendingOrders(); } catch { /* ignore */ }
 
     const data = getAll();
     data.orders = data.orders || [];
@@ -2024,18 +1932,24 @@ const Storage = (() => {
       return { ok: false, error: 'Abra pelo site online (não por arquivo local)' };
     }
 
+    // Pedido sempre tenta a API de verdade (não fica preso no breaker 503)
+    // Timeout curto: sob demanda o WhatsApp não pode esperar o painel
     clearApiBreaker();
     let loyalty = null;
     let lastError = 'Sem conexão com a API Hostinger';
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const { res, result } = await postCreateOrder(order, client);
+        const res = await apiFetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_order', order, client }),
+        }, 10000, { force: true });
+        const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.orderNumber) order.number = result.orderNumber;
           if (result.orderId) order.id = result.orderId;
           if (result.status) order.status = result.status;
           if (result.loyalty) loyalty = result.loyalty;
-          removePendingOrder(order.id);
           data.orders.push(order);
           applyLocalStockDecrement(itemsWithImage);
           setMemory(data);
@@ -2046,29 +1960,26 @@ const Storage = (() => {
         }
         if (res.status === 503 || res.status === 403) {
           lastError = 'Servidor ocupado agora. Aguarde 1 minuto e tente de novo.';
-          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
         const detail = result.detail ? ` (${result.detail})` : '';
         lastError = (result.error || 'Falha ao gravar no painel') + detail;
-        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 2) {
-          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+        // Estoque / erros transitórios: tenta de novo
+        if (/estoque|timeout|ocupado|conexão|conexao/i.test(lastError) && attempt < 1) {
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
           clearApiBreaker();
           continue;
         }
-        break;
+        return { ok: false, error: lastError };
       } catch {
         lastError = 'Sem conexão com a API Hostinger';
-        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
         clearApiBreaker();
       }
     }
-
-    // Fila + beacon: ainda tenta gravar depois que o WhatsApp abrir
-    queuePendingOrder(order, client);
-    beaconCreateOrder(order, client);
-    return { ok: false, error: lastError, queued: true, order };
+    return { ok: false, error: lastError };
   }
 
   async function getOrderStatus(phone, orderNumber = '') {
@@ -2141,7 +2052,7 @@ const Storage = (() => {
     initCloud, pullFull, pullPublic, pushToCloud, saveAsync,
     isCloudEnabled, wasLoadedFromCache, setAdminPassword, getAdminPassword,
     startCloudPolling, stopCloudPolling, notifyUpdated,
-    createPublicOrder, flushPendingOrders, getOrderStatus, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
+    createPublicOrder, getOrderStatus, getLoyaltyStatus, computeLoyaltyFromOrders, getApiUrl,
     sortProductsList, sortCategoriesList, applyProductSortOrders, applyCategorySortOrders,
     saveCatalogOrderAsync, nextProductSortOrder,
     probeCloud, reconnectCloud, apiCoolingDown, clearApiBreaker,

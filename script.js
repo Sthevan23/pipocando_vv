@@ -5,11 +5,12 @@
 const CATEGORY_LABELS = {
   all: 'Todos',
   'cat-pipocas': 'Pipocas Trufadas',
+  'cat-pipocas-normais': 'Pipocas Normais',
   'cat-combos': 'Combos',
   'cat-lembrancinhas': 'Lembrancinhas',
 };
 
-const FILTERS = ['all', 'cat-pipocas', 'cat-combos', 'cat-lembrancinhas'];
+const FILTERS = ['all', 'cat-pipocas', 'cat-pipocas-normais', 'cat-combos', 'cat-lembrancinhas'];
 
 let activeFilter = 'all';
 let selectedProduct = null;
@@ -52,7 +53,7 @@ function lockBodyScroll() {
         return;
       }
       const scrollable = target.closest(
-        '.order-lightbox__scroll, .order-lightbox__info, .cart-drawer__body, .cart-drawer__foot, .cart-checkout, .cart-drawer__panel, .flavor-options, textarea, input, select, button, a, label'
+        '.order-lightbox__scroll, .order-lightbox__info, .cart-drawer__body, .flavor-options, textarea, input, select'
       );
       if (scrollable) return;
       e.preventDefault();
@@ -1651,6 +1652,9 @@ function renderGallery() {
 }
 
 function isPipocaProduct(product) {
+  // Produto com sabor fixo (ex.: Ninho sem escolha) não usa seletor de coberturas
+  const slots = Number(product?.flavorSlots ?? product?.maxFlavors);
+  if (Number.isFinite(slots) && slots <= 0) return false;
   const categoryId = String(product?.categoryId || '');
   const name = String(product?.name || '').toLowerCase();
   return categoryId === 'cat-pipocas' || /\bpipoca\b/.test(name);
@@ -2781,7 +2785,6 @@ function closeCart() {
 async function checkoutCart() {
   const error = document.getElementById('cart-error');
   const btn = document.getElementById('cart-checkout-btn');
-  if (btn?.dataset.busy === '1') return;
   if (typeof Storage !== 'undefined' && Storage.isStoreOpen && !Storage.isStoreOpen()) {
     if (error) {
       error.textContent = Storage.storeClosedMessage?.() || 'Loja fechada no momento.';
@@ -2881,22 +2884,11 @@ async function checkoutCart() {
     return;
   }
 
-  // Distância: timeout curto pra não travar o botão no celular
+  // Distância: acima do raio bloqueia o checkout no site
   if (!cartDistanceState || cartDistanceState.address !== address) {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Verificando endereço…';
-    }
-    try {
-      await Promise.race([
-        verifyCartDeliveryDistance(address),
-        new Promise((resolve) => setTimeout(resolve, 3500)),
-      ]);
-    } catch { /* segue */ }
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Finalizar pedido';
-    }
+    if (btn) btn.disabled = true;
+    await verifyCartDeliveryDistance(address);
+    if (btn) btn.disabled = false;
   }
   const distState = cartDistanceState || {};
 
@@ -2974,17 +2966,16 @@ async function checkoutCart() {
     notesParts.push(`Cupom ${couponCode}: − ${Storage.formatCurrency(discount)}`);
   }
 
-  const prevLabel = btn?.textContent || 'Finalizar pedido';
+  const prevLabel = btn?.textContent || '';
   if (btn) {
-    btn.dataset.busy = '1';
     btn.disabled = true;
-    btn.textContent = 'Finalizando…';
+    btn.textContent = 'Registrando pedido…';
   }
 
   // Abre aba vazia AINDA no clique (antes do await) — evita bloqueio de pop-up no desktop
   const waTab = openWhatsAppPlaceholderTab();
 
-  // Grava no painel (máx ~8s no celular) — keepalive continua se demorar
+  // Sob demanda: não trava o WhatsApp esperando o painel (máx ~5s)
   const savePromise = Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
@@ -3005,8 +2996,9 @@ async function checkoutCart() {
 
   let saved = await Promise.race([
     savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
-    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 8000)),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
   ]);
+
   if (saved?.timedOut) {
     savePromise.then((r) => {
       if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
@@ -3027,26 +3019,26 @@ async function checkoutCart() {
   if (trulyOutside) {
     message += `\n\n(Obs.: distância estimada ≈ ${String(distState.km).replace('.', ',')} km — acima de ${getDeliveryRadiusKm()} km, combinar entrega)`;
   }
-  if (!saved?.ok) {
-    message += '\n\n(Obs.: confirmar pedido — site tentando gravar no painel)';
+  if (!saved?.ok && !saved?.timedOut) {
+    message += '\n\n(Obs.: pedido enviado pelo site — confirmar no WhatsApp)';
   }
 
-  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
   clearCart();
   closeCart();
   if (btn) {
-    btn.dataset.busy = '0';
     btn.disabled = false;
     btn.textContent = prevLabel || 'Finalizar pedido';
   }
 
+  // WhatsApp SEMPRE abre — é o canal crítico da loja sob demanda
   const waUrl = openWhatsAppChat(message, { preOpened: waTab });
   showOrderSentPanel({
     orderNumber: saved?.order?.number || '',
     whatsappUrl: waUrl,
     panelNote: saved?.ok
       ? ''
-      : 'Pedido no WhatsApp. Se não aparecer no painel, toque Atualizar pedidos no admin.',
+      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
   });
 }
 
@@ -3135,14 +3127,7 @@ function openWhatsAppChat(text, opts = {}) {
   }
 
   if (isMobileBrowser()) {
-    // Tenta nova aba pra NÃO matar o salvamento do painel; se bloquear, mesma aba
-    try {
-      const win = window.open(url, '_blank');
-      if (win) {
-        try { win.focus(); } catch { /* ignore */ }
-        return url;
-      }
-    } catch { /* ignore */ }
+    // Mesma aba no celular — mais confiável
     window.location.href = url;
     return url;
   }
@@ -3418,8 +3403,7 @@ async function finalizeOrder() {
 
   const waTab = openWhatsAppPlaceholderTab();
 
-  if (btn) btn.textContent = 'Registrando no painel…';
-  const saved = await Storage.createPublicOrder({
+  const savePromise = Storage.createPublicOrder({
     fullName,
     whatsapp: phone,
     items: [{
@@ -3433,6 +3417,17 @@ async function finalizeOrder() {
     total: unit,
     notes: ['Entrega', detail].filter(Boolean).join(' | '),
   }).catch(() => ({ ok: false, error: 'Falha ao gravar' }));
+
+  let saved = await Promise.race([
+    savePromise.then((r) => ({ ...(r || {}), timedOut: false })),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, timedOut: true }), 5000)),
+  ]);
+
+  if (saved?.timedOut) {
+    savePromise.then((r) => {
+      if (r?.ok && r.order) saveActiveOrderTrack(phone, r.order);
+    }).catch(() => {});
+  }
 
   const messageWithFulfillment = buildCartWhatsAppMessage({
     fullName,
@@ -3450,7 +3445,7 @@ async function finalizeOrder() {
     }],
   });
 
-  if (saved?.order) saveActiveOrderTrack(phone, saved.order);
+  if (saved?.ok && saved?.order) saveActiveOrderTrack(phone, saved.order);
   closeLightbox();
   if (btn) {
     btn.disabled = false;
@@ -3462,7 +3457,7 @@ async function finalizeOrder() {
     whatsappUrl: waUrl,
     panelNote: saved?.ok
       ? ''
-      : 'Pedido no WhatsApp. Se não aparecer no painel, toque Atualizar pedidos no admin.',
+      : 'Se o WhatsApp não abriu sozinho, toque no botão abaixo para enviar o pedido.',
   });
 }
 

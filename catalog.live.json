@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "generatedAt": "2026-09-17T15:25:00+00:00",
+  "version": 4,
+  "generatedAt": "2026-09-19T20:00:00+00:00",
   "settings": {
     "name": "Pipocando VV",
     "tagline": "Pipocas Trufadas",
@@ -50,6 +50,11 @@
       "slug": "pipocas-trufadas"
     },
     {
+      "id": "cat-pipocas-normais",
+      "name": "Pipocas Normais",
+      "slug": "pipocas-normais"
+    },
+    {
       "id": "cat-combos",
       "name": "Combos",
       "slug": "combos"
@@ -61,6 +66,25 @@
     }
   ],
   "products": [
+    {
+      "id": "p-pipoca-ninho-m",
+      "name": "Pipoca Gourmet Ninho M",
+      "description": "Crocante e envolvida em Leite Ninho — sem recheio e sem excesso de creme. Pote M.",
+      "price": 35,
+      "categoryId": "cat-pipocas-normais",
+      "image": "products/pipoca-ninho-m.jpg",
+      "featured": true,
+      "slug": "pipoca-gourmet-ninho-m",
+      "size": "500ml",
+      "flavorSlots": 0,
+      "flavors": ["Ninho"],
+      "promoActive": false,
+      "promoPrice": null,
+      "promoLabel": "",
+      "bestSeller": false,
+      "active": true,
+      "available": true
+    },
     {
       "id": "p-pipoca-p",
       "name": "Pipoca Trufada P",
