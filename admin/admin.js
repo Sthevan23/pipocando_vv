@@ -1226,7 +1226,7 @@ function editOrder(id) {
       <div class="form-group">
         <label>Observações internas</label>
         <textarea id="edit-order-notes" rows="3" placeholder="Entrega, pagamento, endereço com cidade (Vila Velha, Vitória ou Cariacica)…">${escapeHtml(order.notes || '')}</textarea>
-        <small class="form-hint">A taxa de motoboy é calculada automaticamente pela cidade no endereço.</small>
+        <small class="form-hint">A taxa de motoboy é calculada pela distância (km). Ajuste se precisar.</small>
       </div>
 
       <div class="modal__actions">
@@ -4111,10 +4111,10 @@ function initSettings() {
   if (radiusEl) {
     radiusEl.value = s.deliveryRadiusKm != null && s.deliveryRadiusKm !== ''
       ? Number(s.deliveryRadiusKm)
-      : 7;
+      : 10;
   }
   document.getElementById('set-delivery-note').value =
-    s.deliveryNote || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    s.deliveryNote || 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
   const ifoodEl = document.getElementById('set-ifood-url');
   if (ifoodEl) ifoodEl.value = s.ifoodUrl || brandDefaultsEarly.ifoodUrl || '';
   document.getElementById('set-sobre1').value = s.sobreText1 || '';
@@ -4169,7 +4169,7 @@ function initSettings() {
     if (!Number.isFinite(deliveryFee) || deliveryFee < 0) deliveryFee = 5;
     const radiusRaw = String(document.getElementById('set-delivery-radius')?.value || '').replace(',', '.');
     let deliveryRadiusKm = Number(radiusRaw);
-    if (!Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm < 1) deliveryRadiusKm = 7;
+    if (!Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm < 1) deliveryRadiusKm = 10;
 
     const payload = {
       name: document.getElementById('set-name').value.trim(),
@@ -4196,7 +4196,7 @@ function initSettings() {
       deliveryRadiusKm,
       storeLat: Number(Storage.getSettings()?.storeLat) || -20.3539,
       storeLng: Number(Storage.getSettings()?.storeLng) || -40.3558,
-      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+      deliveryNote: document.getElementById('set-delivery-note').value.trim() || 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar',
       ifoodUrl: document.getElementById('set-ifood-url')?.value.trim() || '',
       sobreText1: document.getElementById('set-sobre1').value.trim(),
       sobreText2: document.getElementById('set-sobre2').value.trim(),

@@ -184,7 +184,7 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
 
   try {
     aurora_ensure_ninho_product($pdo);
-    aurora_ensure_panel_only_novidades($pdo);
+    aurora_ensure_panel_only_novidades($pdo); aurora_ensure_delivery_tiers($pdo);
   } catch (Throwable $e) {
     // segue mesmo sem o produto
   }
@@ -354,7 +354,7 @@ function aurora_load_all(PDO $pdo, string $mode = 'full'): ?array {
     'sobreText1' => $settingsRow['sobre_text1'] ?? '',
     'sobreText2' => $settingsRow['sobre_text2'] ?? '',
     'deliveryFee' => isset($settingsRow['delivery_fee']) ? (float) $settingsRow['delivery_fee'] : 5,
-    'deliveryNote' => $settingsRow['delivery_note'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+    'deliveryNote' => $settingsRow['delivery_note'] ?? 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar',
     'storeStatus' => (string) ($settingsRow['store_status'] ?? 'auto'),
     'openTime' => (string) ($settingsRow['open_time'] ?? '19:30'),
     'closeTime' => (string) ($settingsRow['close_time'] ?? '22:00'),
@@ -712,6 +712,34 @@ function aurora_ensure_ninho_product(PDO $pdo): void {
  * Novidades só no painel (active=0) — não sobem pro site oficial.
  * P / M / G com fotos novas.
  */
+
+/**
+ * Atualiza nota/raio de frete por km (migra texto antigo por cidade).
+ */
+function aurora_ensure_delivery_tiers(PDO $pdo): void {
+  if (!aurora_table_exists($pdo, 'settings')) return;
+  $note = 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
+  try {
+    $row = $pdo->query('SELECT delivery_note, hero_story FROM settings WHERE id = 1 LIMIT 1')->fetch();
+    if (!$row) return;
+    $current = trim((string) ($row['delivery_note'] ?? ''));
+    $needsNote = ($current === '' || preg_match('/vit[oó]ria/iu', $current) || preg_match('/vila\s*velha\s*r\$/iu', $current) || preg_match('/at[eé]\s*7\s*km/iu', $current));
+    if ($needsNote) {
+      $pdo->prepare('UPDATE settings SET delivery_note = ? WHERE id = 1')->execute([$note]);
+    }
+    $hero = json_decode((string) ($row['hero_story'] ?? ''), true);
+    if (!is_array($hero)) $hero = [];
+    $radius = isset($hero['deliveryRadiusKm']) ? (float) $hero['deliveryRadiusKm'] : 0;
+    if ($radius < 10) {
+      $hero['deliveryRadiusKm'] = 10;
+      $packed = json_encode($hero, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+      $pdo->prepare('UPDATE settings SET hero_story = ? WHERE id = 1')->execute([$packed]);
+    }
+  } catch (Throwable $e) {
+    // ignore
+  }
+}
+
 function aurora_ensure_panel_only_novidades(PDO $pdo): void {
   if (!aurora_table_exists($pdo, 'products')) return;
 
@@ -995,9 +1023,9 @@ function aurora_save_all(PDO $pdo, array $payload): void {
     if ($deliveryFee < 0) {
       $deliveryFee = 0;
     }
-    $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'));
+    $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar'));
     if ($deliveryNote === '') {
-      $deliveryNote = 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+      $deliveryNote = 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
     }
     $stmt->execute([
       $s['name'] ?? '',
@@ -2252,7 +2280,7 @@ function aurora_format_open_days($value): string {
 
 function aurora_ensure_store_settings_columns(PDO $pdo): void {
   aurora_ensure_column($pdo, 'settings', 'delivery_fee', "DECIMAL(10,2) NOT NULL DEFAULT 5.00");
-  aurora_ensure_column($pdo, 'settings', 'delivery_note', "VARCHAR(255) NULL DEFAULT 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'");
+  aurora_ensure_column($pdo, 'settings', 'delivery_note', "VARCHAR(255) NULL DEFAULT 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar'");
   aurora_ensure_column($pdo, 'settings', 'store_status', "VARCHAR(20) NOT NULL DEFAULT 'auto'");
   aurora_ensure_column($pdo, 'settings', 'open_time', "VARCHAR(5) NOT NULL DEFAULT '19:30'");
   aurora_ensure_column($pdo, 'settings', 'close_time', "VARCHAR(5) NOT NULL DEFAULT '22:00'");
@@ -2289,7 +2317,7 @@ function aurora_save_settings_only(PDO $pdo, array $settings): void {
     'sobreText1' => $row['sobre_text1'] ?? '',
     'sobreText2' => $row['sobre_text2'] ?? '',
     'deliveryFee' => isset($row['delivery_fee']) ? (float) $row['delivery_fee'] : 5,
-    'deliveryNote' => $row['delivery_note'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+    'deliveryNote' => $row['delivery_note'] ?? 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar',
     'storeStatus' => (string) ($row['store_status'] ?? 'auto'),
     'openTime' => (string) ($row['open_time'] ?? '19:30'),
     'closeTime' => (string) ($row['close_time'] ?? '22:00'),
@@ -2302,8 +2330,8 @@ function aurora_save_settings_only(PDO $pdo, array $settings): void {
   $heroStory = pipocando_pack_hero_story($s);
   $deliveryFee = isset($s['deliveryFee']) ? (float) $s['deliveryFee'] : 5;
   if ($deliveryFee < 0) $deliveryFee = 0;
-  $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5'));
-  if ($deliveryNote === '') $deliveryNote = 'Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+  $deliveryNote = trim((string) ($s['deliveryNote'] ?? 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar'));
+  if ($deliveryNote === '') $deliveryNote = 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
 
   $stmt = $pdo->prepare(
     'INSERT INTO settings (

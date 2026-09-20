@@ -1,20 +1,33 @@
 /**
- * Frete por cidade + estimativa de distância — Pipocando VV
+ * Frete por distância — Pipocando VV
  * Origem: Rua Burarama, 168 — Cobilândia, Vila Velha/ES
  *
- * Regra: cidade atendida (VV / Vitória / Cariacica) libera o pedido.
- * O GPS só estima distância e avisa; não bloqueia bairro próximo por erro de mapa.
+ * Até 3 km → R$ 5
+ * 3 a 5 km → R$ 7
+ * 5 a 7 km → R$ 8
+ * 7 a 10 km → R$ 12
+ * Acima de 10 km → consultar (WhatsApp / iFood)
  */
 window.PipocandoDelivery = (() => {
   const ZONES = [
-    { id: 'vila_velha', label: 'Vila Velha', fee: 5 },
-    { id: 'vitoria', label: 'Vitória', fee: 10 },
-    { id: 'cariacica', label: 'Cariacica', fee: 5 },
+    { id: 'vila_velha', label: 'Vila Velha' },
+    { id: 'vitoria', label: 'Vitória' },
+    { id: 'cariacica', label: 'Cariacica' },
   ];
+
+  const FEE_TIERS = [
+    { maxKm: 3, fee: 5, label: 'Até 3 km' },
+    { maxKm: 5, fee: 7, label: '3 a 5 km' },
+    { maxKm: 7, fee: 8, label: '5 a 7 km' },
+    { maxKm: 10, fee: 12, label: '7 a 10 km' },
+  ];
+
+  const DELIVERY_NOTE =
+    'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
 
   const UNKNOWN = { known: false, fee: 0, city: '', label: '' };
   const DEFAULT_ORIGIN = { lat: -20.3539, lng: -40.3558 };
-  const DEFAULT_RADIUS_KM = 7;
+  const DEFAULT_RADIUS_KM = 10;
   /** Só bloqueia de verdade se o mapa disser muito longe E não houver cidade válida */
   const HARD_BLOCK_KM = 35;
 
@@ -28,10 +41,24 @@ window.PipocandoDelivery = (() => {
       .toLowerCase();
   }
 
+  function feeFromKm(km) {
+    const n = Number(km);
+    if (!Number.isFinite(n) || n < 0) {
+      return { fee: 0, consult: true, label: 'Consultar', tier: null };
+    }
+    for (let i = 0; i < FEE_TIERS.length; i += 1) {
+      const t = FEE_TIERS[i];
+      if (n <= t.maxKm) {
+        return { fee: t.fee, consult: false, label: t.label, tier: t.maxKm };
+      }
+    }
+    return { fee: 0, consult: true, label: 'Acima de 10 km — consultar', tier: '10+' };
+  }
+
   function zoneResult(zone, extra = {}) {
     return {
       known: true,
-      fee: zone.fee,
+      fee: Number(extra.fee) >= 0 ? Number(extra.fee) : 0,
       city: zone.id,
       label: zone.label,
       ...extra,
@@ -69,7 +96,7 @@ window.PipocandoDelivery = (() => {
   function resolveFromCityId(cityId) {
     const id = String(cityId || '').trim().toLowerCase();
     const zone = ZONES.find((z) => z.id === id);
-    return zone ? zoneResult(zone) : { ...UNKNOWN };
+    return zone ? zoneResult(zone, { fee: 0, pendingFee: true }) : { ...UNKNOWN };
   }
 
   function matchZone(norm) {
@@ -93,7 +120,7 @@ window.PipocandoDelivery = (() => {
     const raw = String(address || '').trim();
     if (!raw) return { ...UNKNOWN };
     const zone = matchZone(normalize(raw));
-    return zone ? zoneResult(zone) : { ...UNKNOWN };
+    return zone ? zoneResult(zone, { fee: 0, pendingFee: true }) : { ...UNKNOWN };
   }
 
   function resolve(cityId, address) {
@@ -102,13 +129,38 @@ window.PipocandoDelivery = (() => {
     return resolveFromAddress(address);
   }
 
+  function resolveWithDistance(cityId, address, km) {
+    const base = resolve(cityId, address);
+    const tier = feeFromKm(km);
+    if (tier.consult) {
+      return {
+        known: false,
+        fee: 0,
+        city: base.city || '',
+        label: base.label || tier.label,
+        consult: true,
+        tier: tier.tier,
+        km: Number(km),
+      };
+    }
+    return {
+      known: true,
+      fee: tier.fee,
+      city: base.city || '',
+      label: base.label || tier.label,
+      feeLabel: tier.label,
+      tier: tier.tier,
+      km: Number(km),
+      pendingFee: false,
+    };
+  }
+
   function zonesSummaryText() {
-    const km = getRadiusKm();
-    return `Entrega em até ${km} km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5`;
+    return DELIVERY_NOTE;
   }
 
   function radiusNoteText() {
-    return `Entregamos em Vila Velha, Vitória e Cariacica (referência ~${getRadiusKm()} km da Cobilândia).`;
+    return `Raio a partir da Cobilândia · até ${getRadiusKm()} km no site · acima disso consulte no WhatsApp`;
   }
 
   function isInEspiritoSanto(lat, lng) {
@@ -265,16 +317,16 @@ window.PipocandoDelivery = (() => {
         allowCheckout: cityKnown,
         softWarn: false,
         km: null,
+        fee: 0,
         radiusKm,
         pending: true,
-        message: 'Informe CEP, rua e número para estimar a distância.',
+        message: 'Informe CEP, rua e número para estimar a distância e a taxa.',
       };
       return lastDistance;
     }
 
     const geo = await geocodeAddress(addressOrParts);
     if (!geo) {
-      // Sem GPS: se a cidade é atendida, libera o pedido
       lastDistance = {
         ok: false,
         checked: false,
@@ -282,9 +334,10 @@ window.PipocandoDelivery = (() => {
         allowCheckout: cityKnown,
         softWarn: false,
         km: null,
+        fee: cityKnown ? 5 : 0,
         radiusKm,
         message: cityKnown
-          ? 'Não estimamos a distância no mapa, mas sua cidade é atendida. Pode finalizar.'
+          ? 'Não estimamos a distância no mapa, mas sua cidade é atendida. Taxa mínima R$ 5 — confirmamos no WhatsApp.'
           : 'Não localizamos no mapa. Selecione a cidade ou fale no WhatsApp.',
       };
       return lastDistance;
@@ -292,34 +345,39 @@ window.PipocandoDelivery = (() => {
 
     const km = haversineKm(origin.lat, origin.lng, geo.lat, geo.lng);
     const rounded = Math.round(km * 10) / 10;
-    // Dentro = até o raio (+0,5 km de margem do mapa)
     const withinRadius = km <= (radiusKm + 0.5);
     const outOfRange = !withinRadius;
     const hardFar = km > HARD_BLOCK_KM;
+    const tier = feeFromKm(rounded);
 
     let message;
-    if (withinRadius) {
-      message = `≈ ${String(rounded).replace('.', ',')} km da loja — dentro da rota de entrega ✓`;
-    } else {
+    if (withinRadius && !tier.consult) {
       message =
-        `Fora da rota de entrega (≈ ${String(rounded).replace('.', ',')} km · limite ${radiusKm} km). ` +
+        `≈ ${String(rounded).replace('.', ',')} km · ${tier.label} · frete R$ ${String(tier.fee).replace('.', ',')}`;
+    } else if (tier.consult || outOfRange) {
+      message =
+        `Fora da rota automática (≈ ${String(rounded).replace('.', ',')} km · limite ${radiusKm} km). ` +
         `Chame no WhatsApp para confirmarmos se encaixamos na rota ou se enviamos pelo iFood.`;
+    } else {
+      message = `≈ ${String(rounded).replace('.', ',')} km da loja — dentro da rota de entrega ✓`;
     }
 
     lastDistance = {
       ok: true,
       checked: true,
-      inRange: withinRadius,
-      // Acima do raio: bloqueia finalizar no site
-      allowCheckout: withinRadius,
-      softWarn: outOfRange,
+      inRange: withinRadius && !tier.consult,
+      allowCheckout: withinRadius && !tier.consult,
+      softWarn: outOfRange || tier.consult,
       hardFar,
       km: rounded,
+      fee: tier.consult ? 0 : tier.fee,
+      feeLabel: tier.label,
+      consult: tier.consult,
       radiusKm,
       lat: geo.lat,
       lng: geo.lng,
       approximate: !!geo.approximate || geo.source === 'cep',
-      outOfRange,
+      outOfRange: outOfRange || tier.consult,
       message,
     };
     return lastDistance;
@@ -335,12 +393,16 @@ window.PipocandoDelivery = (() => {
 
   return {
     ZONES,
+    FEE_TIERS,
+    DELIVERY_NOTE,
     DEFAULT_ORIGIN,
     DEFAULT_RADIUS_KM,
     HARD_BLOCK_KM,
+    feeFromKm,
     resolveFromCityId,
     resolveFromAddress,
     resolve,
+    resolveWithDistance,
     zonesSummaryText,
     radiusNoteText,
     getOrigin,

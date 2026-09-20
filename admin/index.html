@@ -643,23 +643,23 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="set-delivery-fee">Frete base — Vila Velha / Cariacica (R$)</label>
+              <label for="set-delivery-fee">Frete mínimo / fallback (R$)</label>
               <input type="number" id="set-delivery-fee" min="0" step="0.5" value="5" inputmode="decimal">
             </div>
             <div class="form-group">
-              <label for="set-delivery-radius">Raio máximo de entrega (km)</label>
-              <input type="number" id="set-delivery-radius" min="1" max="50" step="0.5" value="7" inputmode="decimal">
+              <label for="set-delivery-radius">Raio máximo de entrega no site (km)</label>
+              <input type="number" id="set-delivery-radius" min="1" max="50" step="0.5" value="10" inputmode="decimal">
             </div>
           </div>
           <div class="form-group">
             <label for="set-delivery-note">Observação do frete</label>
-            <input type="text" id="set-delivery-note" placeholder="Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5">
-            <small class="form-hint">Centro do raio: Rua Burarama, 168 — Cobilândia. Acima de 7 km o site bloqueia e pede WhatsApp / iFood.</small>
+            <input type="text" id="set-delivery-note" placeholder="Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar">
+            <small class="form-hint">Centro do raio: Rua Burarama, 168 — Cobilândia. Taxa por km no checkout. Acima de 10 km o site pede WhatsApp / iFood.</small>
           </div>
           <div class="form-group">
             <label for="set-ifood-url">Link do iFood (fora da rota)</label>
             <input type="url" id="set-ifood-url" placeholder="https://www.ifood.com.br/delivery/...">
-            <small class="form-hint">Aparece no carrinho quando o endereço passa de 7 km. Deixe em branco se ainda não tiver o link.</small>
+            <small class="form-hint">Aparece no carrinho quando o endereço passa de 10 km. Deixe em branco se ainda não tiver o link.</small>
           </div>
           <div class="form-group">
             <label for="set-site-url">URL do site</label>
@@ -774,7 +774,7 @@
   <script src="../js/default-data.js?v=9"></script>
   <script src="../js/product-photos.js?v=4"></script>
   <script src="../js/storage.js?v=26"></script>
-  <script src="../js/delivery-zones.js?v=1"></script>
+  <script src="../js/delivery-zones.js?v=2"></script>
   <script src="bluetooth-print.js?v=8"></script>
   <script src="admin.js?v=23"></script>
 </body>

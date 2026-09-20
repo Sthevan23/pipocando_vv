@@ -70,9 +70,9 @@ const PIPOCANDO_DEFAULT_DATA = {
 
     deliveryFee: 5,
 
-    deliveryNote: 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5',
+    deliveryNote: 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar',
 
-    deliveryRadiusKm: 7,
+    deliveryRadiusKm: 10,
 
     storeLat: -20.3539,
 

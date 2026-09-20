@@ -397,15 +397,19 @@ function syncFulfillmentUI() {
 
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
-    if (hasItems && isDistanceOutsideRadius(cartDistanceState)) {
+    if (hasItems && (delivery.consult || isDistanceOutsideRadius(cartDistanceState))) {
       zoneStatus.textContent =
-        `Fora da rota (≈ ${String(cartDistanceState.km).replace('.', ',')} km) — confirme no WhatsApp ou peça pelo iFood.`;
+        `Acima de ${radiusKm} km (≈ ${String(cartDistanceState?.km ?? '').toString().replace('.', ',')} km) — consulte no WhatsApp ou iFood.`;
       zoneStatus.hidden = false;
-    } else if (hasItems && delivery.known && cartDistanceState?.km != null) {
-      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`;
+    } else if (hasItems && delivery.known && delivery.fee > 0 && cartDistanceState?.km != null) {
+      const tier = delivery.feeLabel || delivery.label || '';
+      zoneStatus.textContent = `Frete ${Storage.formatCurrency(delivery.fee)}${tier ? ` (${tier})` : ''} · ≈ ${String(cartDistanceState.km).replace('.', ',')} km`;
       zoneStatus.hidden = false;
-    } else if (hasItems && delivery.known) {
-      zoneStatus.textContent = `Frete ${delivery.label}: ${Storage.formatCurrency(delivery.fee)} — já incluído no total`;
+    } else if (hasItems && delivery.known && delivery.fee > 0) {
+      zoneStatus.textContent = `Frete ${Storage.formatCurrency(delivery.fee)} — já incluído no total`;
+      zoneStatus.hidden = false;
+    } else if (hasItems && (delivery.city || delivery.label)) {
+      zoneStatus.textContent = `Informe o endereço completo para calcular a taxa por km.`;
       zoneStatus.hidden = false;
     } else if (hasItems) {
       zoneStatus.textContent = `Toque na cidade e informe o endereço.`;
@@ -415,8 +419,8 @@ function syncFulfillmentUI() {
     }
   }
   if (addressHint) {
-    addressHint.textContent = delivery.known
-      ? `Endereço em ${delivery.label} — entregamos até ${radiusKm} km da loja`
+    addressHint.textContent = delivery.label
+      ? `Endereço em ${delivery.label} — taxa por km (até ${radiusKm} km no site)`
       : `Digite o CEP para buscar rua e bairro (até ${radiusKm} km da Cobilândia).`;
   }
   if (addressWrap) addressWrap.hidden = !hasItems;
@@ -444,6 +448,15 @@ function resolveDeliveryFromAddress(address) {
 function resolveDeliveryForCart() {
   const cityId = getCartCityId();
   const address = getCartAddressForFee();
+  const km = Number(cartDistanceState?.km ?? window.PipocandoDelivery?.getLastDistance?.()?.km);
+  if (Number.isFinite(km) && window.PipocandoDelivery?.resolveWithDistance) {
+    return PipocandoDelivery.resolveWithDistance(cityId, address, km);
+  }
+  const distFee = Number(cartDistanceState?.fee ?? window.PipocandoDelivery?.getLastDistance?.()?.fee);
+  if (Number.isFinite(distFee) && distFee > 0 && window.PipocandoDelivery?.resolve) {
+    const base = PipocandoDelivery.resolve(cityId, address);
+    return { ...base, known: true, fee: distFee, pendingFee: false };
+  }
   if (window.PipocandoDelivery?.resolve) {
     return PipocandoDelivery.resolve(cityId, address);
   }
@@ -467,10 +480,11 @@ function fulfillmentWhatsAppBlock(_mode, address = '') {
   const dist = cartDistanceState?.inRange === true && cartDistanceState.km != null
     ? `\nDistância: ≈ ${String(cartDistanceState.km).replace('.', ',')} km (raio ${getDeliveryRadiusKm()} km)`
     : '';
-  if (delivery.known) {
+  if (delivery.known && delivery.fee > 0) {
+    const tier = delivery.feeLabel ? ` (${delivery.feeLabel})` : (delivery.label ? ` — ${delivery.label}` : '');
     return (
       `FORMA: Entrega\n` +
-      `Entrega ${delivery.label}: ${Storage.formatCurrency(delivery.fee)}${dist}\n` +
+      `Frete: ${Storage.formatCurrency(delivery.fee)}${tier}${dist}\n` +
       `Endereço: ${addr}`
     );
   }
@@ -491,10 +505,10 @@ function getDeliveryFee() {
 }
 
 function getDeliveryNote() {
-  const note = String(Storage.getSettings()?.deliveryNote || '').trim();
-  if (note) return note;
   if (window.PipocandoDelivery?.zonesSummaryText) return PipocandoDelivery.zonesSummaryText();
-  return `Entrega em até ${getDeliveryRadiusKm()} km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5`;
+  const note = String(Storage.getSettings()?.deliveryNote || '').trim();
+  if (note && !/vit[oó]ria\s*r\$/i.test(note)) return note;
+  return 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
 }
 
 function formatDeliveryFeeText() {
@@ -2646,7 +2660,11 @@ function renderCartUI() {
   const deliveryCityEl = document.getElementById('cart-delivery-city');
   const deliveryFeeEl = document.getElementById('cart-delivery-fee');
   if (deliveryRow) deliveryRow.hidden = !showDelivery;
-  if (deliveryCityEl) deliveryCityEl.textContent = delivery.label ? `(${delivery.label})` : '';
+  if (deliveryCityEl) {
+    deliveryCityEl.textContent = delivery.feeLabel
+      ? `(${delivery.feeLabel})`
+      : (delivery.label ? `(${delivery.label})` : '');
+  }
   if (deliveryFeeEl && showDelivery) deliveryFeeEl.textContent = Storage.formatCurrency(delivery.fee);
   if (totalRow) totalRow.hidden = !(showDiscount || showDelivery);
   if (discountRow) {

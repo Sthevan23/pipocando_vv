@@ -277,10 +277,16 @@ window.AuroraCart = (() => {
   }
 
   function getDeliveryFee(address) {
+    const dist = window.PipocandoDelivery?.getLastDistance?.();
+    if (dist && Number.isFinite(Number(dist.km))) {
+      const tier = PipocandoDelivery.feeFromKm(dist.km);
+      return tier.consult ? 0 : tier.fee;
+    }
+    if (dist && Number(dist.fee) > 0) return Number(dist.fee);
     const addr = address !== undefined ? address : loadCustomer().address;
     if (window.PipocandoDelivery) {
       const resolved = PipocandoDelivery.resolveFromAddress(addr);
-      if (resolved.known) return resolved.fee;
+      if (resolved.known && resolved.fee > 0) return resolved.fee;
       return 0;
     }
     if (typeof Storage === 'undefined') return 0;
@@ -289,6 +295,10 @@ window.AuroraCart = (() => {
   }
 
   function resolveDelivery(address) {
+    const dist = window.PipocandoDelivery?.getLastDistance?.();
+    if (dist && Number.isFinite(Number(dist.km)) && window.PipocandoDelivery?.resolveWithDistance) {
+      return PipocandoDelivery.resolveWithDistance('', address, dist.km);
+    }
     if (window.PipocandoDelivery) {
       return PipocandoDelivery.resolveFromAddress(address);
     }
@@ -296,12 +306,10 @@ window.AuroraCart = (() => {
   }
 
   function getDeliveryNote() {
-    if (typeof Storage === 'undefined') {
-      return 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    if (window.PipocandoDelivery?.zonesSummaryText) {
+      return PipocandoDelivery.zonesSummaryText();
     }
-    return Storage.getSettings()?.deliveryNote
-      || (window.PipocandoDelivery?.zonesSummaryText?.() )
-      || 'Entrega em até 7 km · Vila Velha R$ 5 · Vitória R$ 10 · Cariacica R$ 5';
+    return 'Até 3 km R$ 5 · 3–5 km R$ 7 · 5–7 km R$ 8 · 7–10 km R$ 12 · acima de 10 km consultar';
   }
 
   function formatMoney(value) {
