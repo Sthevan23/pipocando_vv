@@ -1225,7 +1225,7 @@ function editOrder(id) {
 
       <div class="form-group">
         <label>Observações internas</label>
-        <textarea id="edit-order-notes" rows="3" placeholder="Entrega, pagamento, endereço com cidade (Vila Velha, Vitória ou Cariacica)…">${escapeHtml(order.notes || '')}</textarea>
+        <textarea id="edit-order-notes" rows="3" placeholder="Entrega, pagamento, endereço com cidade (Vila Velha ou Cariacica)…">${escapeHtml(order.notes || '')}</textarea>
         <small class="form-hint">A taxa de motoboy é calculada pela distância (km). Ajuste se precisar.</small>
       </div>
 

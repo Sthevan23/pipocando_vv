@@ -214,14 +214,35 @@ function getIfoodUrl() {
   return url;
 }
 
+function isDeliveryBlocked(state = cartDistanceState) {
+  if (state?.blocked) return true;
+  const cityId = getCartCityId();
+  const address = getCartAddressForFee();
+  const blocked = window.PipocandoDelivery?.detectBlocked?.(cityId, address);
+  return !!(blocked?.blocked);
+}
+
+function getDeliveryBlockedMessage() {
+  const cityId = getCartCityId();
+  const address = getCartAddressForFee();
+  const blocked = window.PipocandoDelivery?.detectBlocked?.(cityId, address);
+  return (
+    blocked?.message ||
+    cartDistanceState?.message ||
+    'No momento não fazemos entrega nessa cidade ou bairro. Atendemos Vila Velha e Cariacica.'
+  );
+}
+
 function syncCheckoutBtnForDistance() {
   const btn = document.getElementById('cart-checkout-btn');
   if (!btn) return;
   const storeOpen = typeof Storage === 'undefined' || !Storage.isStoreOpen || Storage.isStoreOpen();
   const outside = isDistanceOutsideRadius(cartDistanceState);
-  btn.hidden = outside;
-  btn.disabled = !storeOpen || outside;
-  btn.setAttribute('aria-disabled', (!storeOpen || outside) ? 'true' : 'false');
+  const blocked = isDeliveryBlocked(cartDistanceState);
+  const lock = outside || blocked;
+  btn.hidden = lock;
+  btn.disabled = !storeOpen || lock;
+  btn.setAttribute('aria-disabled', (!storeOpen || lock) ? 'true' : 'false');
 }
 
 function setCartDistanceUI(state) {
@@ -247,21 +268,25 @@ function setCartDistanceUI(state) {
   el.className = 'cart-distance';
 
   const outside = isDistanceOutsideRadius(state);
+  const blocked = !!(state.blocked || isDeliveryBlocked(state));
   if (state.checking) el.classList.add('cart-distance--pending');
+  else if (blocked) el.classList.add('cart-distance--out');
   else if (!outside && state.km != null) el.classList.add('cart-distance--ok');
   else if (outside) el.classList.add('cart-distance--out');
   else el.classList.add('cart-distance--ok');
 
-  if (actions) actions.hidden = !outside;
+  if (actions) actions.hidden = !(outside || blocked);
   if (waBtn) {
-    waBtn.hidden = !outside;
-    if (outside) {
+    waBtn.hidden = !(outside || blocked);
+    if (blocked) {
+      waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Falar no WhatsApp';
+    } else if (outside) {
       waBtn.innerHTML = '<i class="fab fa-whatsapp" aria-hidden="true"></i> Confirmar no WhatsApp';
     }
   }
   const ifoodUrl = getIfoodUrl();
   if (ifoodBtn) {
-    if (outside && ifoodUrl) {
+    if ((outside || blocked) && ifoodUrl) {
       ifoodBtn.hidden = false;
       ifoodBtn.href = ifoodUrl;
     } else {
@@ -278,7 +303,19 @@ function buildOutOfRangeWhatsAppMessage() {
   const km = Number(cartDistanceState?.km);
   const radius = getDeliveryRadiusKm();
   const name = `${c.nome || ''} ${c.sobrenome || ''}`.trim();
+  const blocked = isDeliveryBlocked(cartDistanceState);
   const outside = Number.isFinite(km) && km > radius + 0.5;
+
+  if (blocked) {
+    return (
+      `Olá! 🍿\n` +
+      `Vi que vocês não entregam em Vitória no momento.\n\n` +
+      (addr ? `Endereço: ${addr}\n` : '') +
+      (name ? `Nome: ${name}\n` : '') +
+      (c.phone ? `WhatsApp: ${formatPhoneBR(c.phone)}\n` : '') +
+      `\nTem alguma alternativa (ex.: iFood) ou posso retirar? 😊`
+    );
+  }
 
   if (!outside) {
     return (
@@ -318,18 +355,37 @@ function isDeliveryInRangeForCheckout() {
 
 async function verifyCartDeliveryDistance(addressOverride) {
   const cityId = getCartCityId();
-  const cityKnown = !!(window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.known);
   const parts = {
     street: document.getElementById('cart-street')?.value.trim() || '',
     number: document.getElementById('cart-number')?.value.trim() || '',
     neighborhood: document.getElementById('cart-neighborhood')?.value.trim() || '',
     city: window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.label || '',
+    cityLabel: '',
     cep: String(document.getElementById('cart-cep')?.value || '').replace(/\D/g, ''),
   };
   const address = typeof addressOverride === 'string' && addressOverride.trim()
     ? addressOverride.trim()
     : syncComposedCartAddress();
   const radiusKm = getDeliveryRadiusKm();
+
+  const blockedEarly = window.PipocandoDelivery?.detectBlocked?.(cityId, address || parts.neighborhood);
+  if (blockedEarly?.blocked) {
+    setCartDistanceUI({
+      checked: true,
+      inRange: false,
+      allowCheckout: false,
+      blocked: true,
+      km: null,
+      fee: 0,
+      message: blockedEarly.message,
+      address,
+    });
+    scheduleRenderCartUI();
+    return cartDistanceState;
+  }
+
+  const cityKnown = !!(window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.known);
+  parts.city = window.PipocandoDelivery?.resolveFromCityId?.(cityId)?.label || parts.city;
 
   if (!parts.street && parts.cep.length !== 8 && address.length < 8) {
     PipocandoDelivery?.clearDistance?.();
@@ -356,7 +412,7 @@ async function verifyCartDeliveryDistance(addressOverride) {
   });
   try {
     const payload = parts.street || parts.cep ? parts : address;
-    const result = await PipocandoDelivery.checkDistance(payload, { cityKnown });
+    const result = await PipocandoDelivery.checkDistance(payload, { cityKnown, cityId });
     setCartDistanceUI({
       ...result,
       address,
@@ -397,7 +453,10 @@ function syncFulfillmentUI() {
 
   if (zonesWrap) zonesWrap.hidden = !hasItems;
   if (zoneStatus) {
-    if (hasItems && (delivery.consult || isDistanceOutsideRadius(cartDistanceState))) {
+    if (hasItems && (delivery.blocked || isDeliveryBlocked())) {
+      zoneStatus.textContent = getDeliveryBlockedMessage();
+      zoneStatus.hidden = false;
+    } else if (hasItems && (delivery.consult || isDistanceOutsideRadius(cartDistanceState))) {
       zoneStatus.textContent =
         `Acima de ${radiusKm} km (≈ ${String(cartDistanceState?.km ?? '').toString().replace('.', ',')} km) — consulte no WhatsApp ou iFood.`;
       zoneStatus.hidden = false;
@@ -412,7 +471,7 @@ function syncFulfillmentUI() {
       zoneStatus.textContent = `Informe o endereço completo para calcular a taxa por km.`;
       zoneStatus.hidden = false;
     } else if (hasItems) {
-      zoneStatus.textContent = `Toque na cidade e informe o endereço.`;
+      zoneStatus.textContent = `Toque na cidade (Vila Velha ou Cariacica) e informe o endereço.`;
       zoneStatus.hidden = false;
     } else {
       zoneStatus.hidden = true;
@@ -469,6 +528,11 @@ function resolveDeliveryForCart() {
 
 function syncCartCityFromAddress() {
   const address = document.getElementById('cart-address')?.value || '';
+  const blocked = window.PipocandoDelivery?.detectBlocked?.('', address);
+  if (blocked?.blocked) {
+    setCartCity('');
+    return;
+  }
   const resolved = resolveDeliveryFromAddress(address);
   if (!resolved.known) return;
   setCartCity(resolved.city);
@@ -615,6 +679,10 @@ function cityIdFromViaCepLocalidade(localidade) {
   return '';
 }
 
+function isBlockedCityId(cityId) {
+  return String(cityId || '').toLowerCase() === 'vitoria';
+}
+
 let cepLookupToken = 0;
 
 async function lookupCartCep(rawCep) {
@@ -639,6 +707,23 @@ async function lookupCartCep(rawCep) {
     if (streetEl) streetEl.value = data.logradouro || streetEl.value || '';
     if (neighborhoodEl) neighborhoodEl.value = data.bairro || neighborhoodEl.value || '';
     const cityId = cityIdFromViaCepLocalidade(data.localidade);
+    if (isBlockedCityId(cityId)) {
+      setCartCity('');
+      syncComposedCartAddress();
+      const msg =
+        window.PipocandoDelivery?.detectBlocked?.(cityId, data.localidade)?.message ||
+        'No momento não fazemos entrega em Vitória. Atendemos Vila Velha e Cariacica.';
+      if (hint) hint.textContent = msg;
+      setCartDistanceUI({
+        checked: true,
+        inRange: false,
+        allowCheckout: false,
+        blocked: true,
+        message: msg,
+      });
+      scheduleRenderCartUI();
+      return data;
+    }
     if (cityId) setCartCity(cityId);
     syncComposedCartAddress();
     if (hint) {
@@ -743,7 +828,8 @@ function fillCustomerFields() {
   if (cartNeighborhood) cartNeighborhood.value = c.neighborhood || '';
   if (cartComplement) cartComplement.value = c.complement || '';
   const savedCity = c.city || resolveDeliveryFromAddress(c.address || c.street).city || '';
-  if (savedCity) setCartCity(savedCity);
+  if (savedCity && !isBlockedCityId(savedCity)) setCartCity(savedCity);
+  else if (isBlockedCityId(savedCity)) setCartCity('');
   syncComposedCartAddress();
   if (cartPhone) {
     cartPhone.value = c.phone ? formatPhoneBR(c.phone) : '';
@@ -2923,9 +3009,26 @@ async function checkoutCart() {
     return;
   }
   const delivery = resolveDeliveryForCart();
+  if (delivery.blocked || isDeliveryBlocked()) {
+    if (error) {
+      error.textContent = getDeliveryBlockedMessage();
+      error.hidden = false;
+    }
+    setCartDistanceUI({
+      ...(cartDistanceState || {}),
+      checked: true,
+      inRange: false,
+      allowCheckout: false,
+      blocked: true,
+      message: getDeliveryBlockedMessage(),
+      address,
+    });
+    document.getElementById('cart-zone-status')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
   if (!delivery.known) {
     if (error) {
-      error.textContent = 'Selecione a cidade ou informe Vila Velha, Vitória ou Cariacica no endereço.';
+      error.textContent = 'Selecione a cidade ou informe Vila Velha ou Cariacica no endereço.';
       error.hidden = false;
     }
     document.getElementById('cart-zones')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2953,10 +3056,19 @@ async function checkoutCart() {
 
   if (!delivery.known && distState.checked === false && !distState.pending) {
     if (error) {
-      error.textContent = 'Selecione Vila Velha, Vitória ou Cariacica para continuar.';
+      error.textContent = 'Selecione Vila Velha ou Cariacica para continuar.';
       error.hidden = false;
     }
     document.getElementById('cart-zones')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  if (distState.blocked || isDeliveryBlocked(distState)) {
+    if (error) {
+      error.textContent = getDeliveryBlockedMessage();
+      error.hidden = false;
+    }
+    document.getElementById('cart-distance-box')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
