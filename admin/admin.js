@@ -930,8 +930,11 @@ function renderOrders() {
           <button type="button" class="btn btn--secondary btn--sm order-edit-btn" onclick="editOrder('${o.id}')" title="Editar pedido">
             <i class="fas fa-edit"></i> Editar
           </button>
-          <button type="button" class="btn--icon edit" onclick="editOrderStatus('${o.id}')" title="Alterar status"><i class="fas fa-exchange-alt"></i></button>
-          ${o.status === 'novo' || o.status === 'preparo' ? `<button type="button" class="btn--icon edit" onclick="quickShipOrder('${o.id}')" title="Saiu para entrega + avisar no WhatsApp"><i class="fas fa-motorcycle"></i></button>` : ''}
+          <div class="order-status-actions">
+            <button type="button" class="btn btn--sm order-status-btn ${o.status === 'preparo' ? 'is-active' : ''}" onclick="quickSetOrderStatus('${o.id}', 'preparo')" ${o.status === 'preparo' || o.status === 'finalizado' || o.status === 'cancelado' ? 'disabled' : ''} title="Marcar em preparo">Em preparo</button>
+            <button type="button" class="btn btn--sm order-status-btn ${o.status === 'entrega' ? 'is-active' : ''}" onclick="quickSetOrderStatus('${o.id}', 'entrega')" ${o.status === 'entrega' || o.status === 'finalizado' || o.status === 'cancelado' ? 'disabled' : ''} title="Saiu para entrega">Saiu p/ entrega</button>
+            <button type="button" class="btn btn--sm order-status-btn ${o.status === 'finalizado' ? 'is-active' : ''}" onclick="quickSetOrderStatus('${o.id}', 'finalizado')" ${o.status === 'finalizado' || o.status === 'cancelado' ? 'disabled' : ''} title="Finalizar pedido">Finalizado</button>
+          </div>
           <button type="button" class="btn--icon edit" onclick="viewOrder('${o.id}')" title="Ver detalhes"><i class="fas fa-eye"></i></button>
           <button type="button" class="btn--icon delete" onclick="deleteOrder('${o.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
         </div>
@@ -2023,24 +2026,43 @@ function toastAfterStatusNotification(result) {
 }
 
 async function quickShipOrder(id) {
+  return quickSetOrderStatus(id, 'entrega');
+}
+
+async function quickSetOrderStatus(id, newStatus) {
+  const allowed = ['preparo', 'entrega', 'finalizado'];
+  if (!allowed.includes(newStatus)) return;
+
   const orders = Storage.getOrders();
   const idx = orders.findIndex((o) => o.id === id);
   if (idx < 0) return;
 
   const order = orders[idx];
   const previousStatus = order.status;
-  if (previousStatus === 'entrega') {
-    showToast('Este pedido já está como saiu para entrega.', 'error');
+  if (previousStatus === newStatus) {
+    showToast('Este pedido já está com esse status.', 'error');
     return;
   }
   if (previousStatus === 'finalizado' || previousStatus === 'cancelado') {
-    showToast('Não é possível enviar pedido finalizado ou cancelado.', 'error');
+    showToast('Não é possível alterar pedido finalizado ou cancelado.', 'error');
     return;
   }
 
-  const draft = { ...order, status: 'entrega' };
-  const notifyResult = notifyOrderStatusWhatsApp(draft, previousStatus, 'entrega');
-  orders[idx].status = 'entrega';
+  if (newStatus === 'finalizado') {
+    const client = Storage.getClients().find((c) => c.id === order.clientId);
+    const name = String(order.clientName || client?.name || '').trim();
+    const phone = onlyDigits(order.clientWhatsapp || client?.phone || '');
+    const hasFullName = name.split(/\s+/).filter(Boolean).length >= 2;
+    if (!hasFullName || phone.length < 10) {
+      editOrderStatus(id);
+      showToast('Para finalizar, complete nome e WhatsApp da cliente.', 'error');
+      return;
+    }
+  }
+
+  const draft = { ...order, status: newStatus };
+  const notifyResult = notifyOrderStatusWhatsApp(draft, previousStatus, newStatus);
+  orders[idx].status = newStatus;
 
   try {
     const ok = await Storage.saveOrdersAsync(orders);
@@ -2050,12 +2072,13 @@ async function quickShipOrder(id) {
     }
     renderOrders();
     renderDashboard();
+    const labels = { preparo: 'Em preparo', entrega: 'Saiu para entrega', finalizado: 'Finalizado' };
     if (notifyResult.notified) {
-      showToast('Saiu para entrega! WhatsApp aberto — toque em Enviar para avisar a cliente.', 'success');
+      showToast(`${labels[newStatus]}! WhatsApp aberto — toque em Enviar para avisar a cliente.`, 'success');
     } else if (notifyResult.reason === 'no-phone') {
       showToast('Status atualizado. Cadastre o WhatsApp da cliente para avisar.', 'error');
     } else {
-      showToast('Pedido marcado como saiu para entrega!', 'success');
+      showToast(`Pedido marcado como ${labels[newStatus].toLowerCase()}.`, 'success');
     }
   } catch {
     showToast('Erro ao atualizar pedido.', 'error');
@@ -2943,12 +2966,33 @@ function editProduct(id) {
   if (product) openProductModal(product);
 }
 
-function deleteProduct(id) {
-  if (!confirm('Deseja excluir este produto?')) return;
-  Storage.saveProducts(Storage.getProducts().filter(p => p.id !== id));
+async function deleteProduct(id) {
+  if (!confirm('Deseja excluir este produto? Ele some do painel e do site.')) return;
+  const prev = Storage.getProducts();
+  const next = prev.filter((p) => p.id !== id);
+  Storage.saveProducts(next); // atualiza a lista na hora
   renderProducts();
   renderDashboard();
-  showToast('Produto excluído.', 'success');
+  showToast('Removendo produto…', 'success');
+  try {
+    const ok = await Storage.saveProductsAsync(next);
+    if (!ok) {
+      Storage.saveProducts(prev);
+      renderProducts();
+      renderDashboard();
+      showToast('Não removeu no servidor. Entre de novo no admin e tente outra vez.', 'error');
+      return;
+    }
+    try { await Storage.publishCatalogAsync?.(); } catch { /* ignore */ }
+    renderProducts();
+    renderDashboard();
+    showToast('Produto removido do cardápio.', 'success');
+  } catch {
+    Storage.saveProducts(prev);
+    renderProducts();
+    renderDashboard();
+    showToast('Erro ao remover produto.', 'error');
+  }
 }
 
 /* --- Categorias --- */
@@ -4334,6 +4378,7 @@ window.deleteCategory = deleteCategory;
 window.editClient = editClient;
 window.deleteClient = deleteClient;
 window.quickShipOrder = quickShipOrder;
+window.quickSetOrderStatus = quickSetOrderStatus;
 window.editOrderStatus = editOrderStatus;
 window.editOrder = editOrder;
 window.openEditOrder = openEditOrder;

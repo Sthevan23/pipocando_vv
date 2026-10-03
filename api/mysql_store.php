@@ -1400,6 +1400,11 @@ function aurora_save_all(PDO $pdo, array $payload): void {
  * Ao republicar o cardápio, mantém só produtos que o MySQL ainda NÃO tem.
  * Se o produto existe no MySQL como "Fora" (active=0), NÃO volta pro site.
  */
+/**
+ * Ao republicar o cardápio, MySQL é a fonte da verdade dos produtos.
+ * Não reimporta produto antigo do JSON — item excluído/Fora não volta ao site.
+ * Só completa categorias que existam no JSON e ainda não estejam no payload.
+ */
 function aurora_merge_catalog_extras(array $payload, array $knownProductIds = []): array {
   $root = dirname(__DIR__);
   $existing = null;
@@ -1410,28 +1415,21 @@ function aurora_merge_catalog_extras(array $payload, array $knownProductIds = []
     if (!is_file($path)) continue;
     $raw = @file_get_contents($path);
     $decoded = json_decode(is_string($raw) ? $raw : '', true);
-    if (is_array($decoded) && !empty($decoded['products']) && is_array($decoded['products'])) {
+    if (is_array($decoded) && !empty($decoded['categories']) && is_array($decoded['categories'])) {
       $existing = $decoded;
       break;
     }
   }
-  if (!$existing) return $payload;
-
-  $prodIds = [];
-  foreach ($payload['products'] ?? [] as $p) {
-    if (!is_array($p)) continue;
-    $id = (string) ($p['id'] ?? '');
-    if ($id !== '') $prodIds[$id] = true;
-  }
-  foreach ($existing['products'] as $ep) {
-    if (!is_array($ep)) continue;
-    $id = (string) ($ep['id'] ?? '');
-    if ($id === '' || isset($prodIds[$id])) continue;
-    // Já cadastrado no painel (mesmo "Fora") — respeita o botão No site/Fora
-    if (isset($knownProductIds[$id])) continue;
-    if (($ep['active'] ?? true) === false) continue;
-    $payload['products'][] = $ep;
-    $prodIds[$id] = true;
+  if (!$existing) {
+    if (!empty($payload['products']) && is_array($payload['products'])) {
+      usort($payload['products'], static function ($a, $b) {
+        $sa = (int) ($a['sortOrder'] ?? 9999);
+        $sb = (int) ($b['sortOrder'] ?? 9999);
+        if ($sa === $sb) return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        return $sa <=> $sb;
+      });
+    }
+    return $payload;
   }
 
   $catIds = [];
@@ -1451,13 +1449,14 @@ function aurora_merge_catalog_extras(array $payload, array $knownProductIds = []
     $catIds[$id] = true;
   }
 
-  // Ordena produtos pelo sortOrder (menor = primeiro)
-  usort($payload['products'], static function ($a, $b) {
-    $sa = (int) ($a['sortOrder'] ?? 9999);
-    $sb = (int) ($b['sortOrder'] ?? 9999);
-    if ($sa === $sb) return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
-    return $sa <=> $sb;
-  });
+  if (!empty($payload['products']) && is_array($payload['products'])) {
+    usort($payload['products'], static function ($a, $b) {
+      $sa = (int) ($a['sortOrder'] ?? 9999);
+      $sb = (int) ($b['sortOrder'] ?? 9999);
+      if ($sa === $sb) return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+      return $sa <=> $sb;
+    });
+  }
 
   $payload['version'] = max(
     (int) ($payload['version'] ?? 0),
@@ -1467,9 +1466,6 @@ function aurora_merge_catalog_extras(array $payload, array $knownProductIds = []
   return $payload;
 }
 
-/**
- * Grava catalog.json na raiz do site — HTML/JS leem sem MySQL/PHP.
- */
 function aurora_write_public_catalog(PDO $pdo): bool {
   try {
     aurora_ensure_ninho_product($pdo);

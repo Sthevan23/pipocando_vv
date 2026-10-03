@@ -898,6 +898,42 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
   white-space: nowrap;
 }
 
+.order-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.order-status-btn {
+  min-height: 30px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid rgba(93, 64, 55, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--marrom-escuro);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.order-status-btn:hover:not(:disabled) {
+  border-color: var(--rosa-escuro);
+  color: var(--rosa-escuro);
+}
+
+.order-status-btn.is-active {
+  background: #fce8ee;
+  border-color: var(--rosa-escuro);
+  color: var(--rosa-escuro);
+}
+
+.order-status-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .catalog-order__intro {
   margin: 0 0 1rem;
   color: var(--texto-claro);
