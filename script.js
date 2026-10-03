@@ -1528,7 +1528,7 @@ function productCardHTML(p, { bestSeller = false } = {}) {
   const flavorsHint = needsFlavorPick
     ? `<p class="product-card__flavor-hint">${slots > 1 ? 'Até 2 coberturas no pote' : '1 cobertura'}</p>`
     : '';
-  const isNovelty = p.isNew === true || p.id === 'p-pipoca-ninho-m';
+  const isNovelty = p.isNew === true;
   const badge = unavailable
     ? '<span class="product-card__badge product-card__badge--off">Indisponível</span>'
     : isNovelty
@@ -1684,7 +1684,7 @@ function pgCatalogCardHTML(p) {
     ? 'Sabor Ninho'
     : (max > 1 ? 'Até 2 sabores' : '1 sabor');
   const openAttr = unavailable ? '' : ` data-pg-open="${p.id}"`;
-  const novelty = (p.isNew === true || p.id === 'p-pipoca-ninho-m')
+  const novelty = (p.isNew === true)
     ? '<span class="pg-catalog-card__new">Novidade</span>'
     : '';
 
@@ -1765,13 +1765,11 @@ function renderGallery() {
 }
 
 function isPipocaMenuProduct(product) {
-  // Aparece em "Monte sua pipoca" (inclui Ninho / Pipocas Normais)
+  // Aparece em "Monte sua pipoca"
   const categoryId = String(product?.categoryId || '');
   const name = String(product?.name || '').toLowerCase();
-  const id = String(product?.id || '');
   return categoryId === 'cat-pipocas'
     || categoryId === 'cat-pipocas-normais'
-    || id === 'p-pipoca-ninho-m'
     || /\bpipoca\b/.test(name);
 }
 
